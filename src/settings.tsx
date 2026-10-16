@@ -1,9 +1,8 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
-import { Copy, FolderOpen, LoaderCircle, Trash2 } from 'lucide-react';
+import { FolderOpen, LoaderCircle, Trash2 } from 'lucide-react';
 import type { Controller } from './controller';
-import { MAX_PROMPT, type Settings, type Translation } from './contracts';
-import { fullTime } from './format';
-import { Dialog, Segmented, copyText } from './ui';
+import { MAX_PROMPT, type Settings } from './contracts';
+import { Dialog, Segmented } from './ui';
 
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
 
@@ -122,16 +121,5 @@ export function ConfirmDialog({ title, body, confirm, onConfirm, onClose }: {
   </>}>
     <p className="dqt-dialog-text">{body}</p>
     {error && <p className="dqt-dialog-error" role="alert">{error}</p>}
-  </Dialog>;
-}
-
-export function PromptDialog({ record, onClose }: { record: Translation; onClose(): void }) {
-  const [copied, setCopied] = useState(false);
-  return <Dialog title="本次翻译使用的提示词" className="dqt-dialog-wide" onClose={onClose} footer={<>
-    <button type="button" className="dqt-button dqt-button-secondary" onClick={() => void copyText(record.prompt).then(() => setCopied(true), () => {})}><Copy />{copied ? '已复制' : '复制'}</button>
-    <button type="button" className="dqt-button dqt-button-primary" data-autofocus onClick={onClose}>关闭</button>
-  </>}>
-    <p className="dqt-hint">{record.modelName} · {fullTime(record.createdAt)}。之后修改提示词不会改变这条记录。</p>
-    <pre className="dqt-prompt-view dqt-prompt-snapshot">{record.prompt}</pre>
   </Dialog>;
 }

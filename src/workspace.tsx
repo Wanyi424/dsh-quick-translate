@@ -1,16 +1,16 @@
 import React, { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Check, ChevronDown, CircleAlert, Copy, Info, Languages, LoaderCircle, Lock, PenLine, RefreshCw, Square, X } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, CircleAlert, Copy, Gauge, Info, Languages, LoaderCircle, Lock, PenLine, RefreshCw, Square, X } from 'lucide-react';
 import type { Controller } from './controller';
 import { MAX_SOURCE, type Model, type Translation } from './contracts';
-import { PHASE, STATUS, duration } from './format';
-import { Menu, anchorFrom, copyText, type MenuAnchor, type MenuEntry } from './ui';
+import { PHASE, STATUS, count, duration, inputOf } from './format';
+import { Menu, anchorFrom, copyText, usePresence, type MenuAnchor, type MenuEntry } from './ui';
 
 const act = (c: Controller, fn: () => Promise<unknown>) => { void c.perform(fn).catch(() => {}); };
 
 function ModelPicker({ c, models, provider, model, warnings, refreshing, disabled }: {
   c: Controller; models: Model[]; provider: string; model: string; warnings: string[]; refreshing: boolean; disabled: boolean;
 }) {
-  const [anchor, setAnchor] = useState<MenuAnchor | null>(null);
+  const [anchor, setAnchor] = useState<MenuAnchor | null>(null), shown = usePresence(anchor);
   const close = useCallback(() => setAnchor(null), []);
   const selected = models.find(m => m.provider === provider && m.id === model);
   const label = selected?.name ?? (model ? `${model}（不可用）` : '选择模型');
@@ -23,7 +23,7 @@ function ModelPicker({ c, models, provider, model, warnings, refreshing, disable
     <button type="button" className="dqt-model" data-state={selected ? 'ready' : 'missing'} aria-haspopup="menu" aria-expanded={!!anchor}
       aria-label={`翻译模型：${label}`} title={selected ? `${selected.name} · ${selected.providerName}` : '选择 DSH 中已配置的模型'} disabled={disabled}
       onClick={event => setAnchor(anchor ? null : anchorFrom(event.currentTarget, 'start'))}><i className="dqt-dot" /><span>{label}</span><ChevronDown /></button>
-    {anchor && <Menu anchor={anchor} label="选择翻译模型" entries={entries} onClose={close} className="dqt-model-menu" footer={<div className="dqt-menu-foot">
+    {shown.value && <Menu anchor={shown.value} label="选择翻译模型" entries={entries} onClose={close} leaving={shown.leaving} onExited={shown.settle} className="dqt-model-menu" footer={<div className="dqt-menu-foot">
       {!models.length && <p>还没有可用的模型。请先在 DSH 设置中配置，再回来刷新。</p>}
       {warnings.map(warning => <p key={warning} data-tone="warn">{warning}</p>)}
       <button type="button" role="menuitem" disabled={refreshing} onClick={() => void c.refreshModels().catch(c.report)}>
@@ -98,14 +98,24 @@ function CopyButton({ text }: { text: string }) {
   </button>;
 }
 
-export const ResultPane = memo(function ResultPane({ c, record, historic, modified, busy }: {
-  c: Controller; record: Translation | null; historic: boolean; modified: boolean; busy: boolean;
+/** Token usage of a finished run, the way into its full details; the history link appears while the list is hidden. */
+function RunMeta({ record, historic, onDetails, onShowHistory }: { record: Translation; historic: boolean; onDetails(record: Translation): void; onShowHistory?(): void }) {
+  const u = record.usage;
+  return <div className="dqt-foot-meta">
+    <button type="button" className="dqt-meta" title="查看 token 用量、耗时与提示词" onClick={() => onDetails(record)}>
+      <Gauge /><span>{u ? `输入 ${count(inputOf(u))} · 输出 ${count(u.outputTokens)} tokens` : '无用量数据'}</span>
+    </button>
+    {onShowHistory && !historic && !record.saveError && <button type="button" className="dqt-link dqt-saved" title="打开历史记录" onClick={onShowHistory}>已保存到历史<ChevronRight /></button>}
+  </div>;
+}
+
+export const ResultPane = memo(function ResultPane({ c, record, historic, modified, busy, onDetails, onShowHistory }: {
+  c: Controller; record: Translation | null; historic: boolean; modified: boolean; busy: boolean; onDetails(record: Translation): void; onShowHistory?(): void;
 }) {
   const output = useRef<HTMLDivElement>(null), sticky = useRef(true);
   const live = record?.status === 'running';
   useEffect(() => { sticky.current = true; output.current?.scrollTo({ top: 0 }); }, [record?.id]);
   useEffect(() => { const el = output.current; if (live && sticky.current && el) el.scrollTop = el.scrollHeight; }, [record?.result, live]);
-  const note = live ? '切换页面不会中断翻译' : record?.result ? `${record.result.length.toLocaleString()} 字符${historic || record.saveError ? '' : ' · 已保存到历史'}` : '';
   return <section className="dqt-pane dqt-result" aria-label="译文" data-stale={modified || undefined}>
     <div className="dqt-pane-head"><h2>译文</h2><StatusPill record={record} /></div>
     {record?.saveError && <div className="dqt-inline" data-tone="danger" role="alert"><CircleAlert /><span>{record.saveError}</span>
@@ -119,6 +129,10 @@ export const ResultPane = memo(function ResultPane({ c, record, historic, modifi
         : record ? <div className="dqt-empty"><p>这次翻译没有产生译文</p><span>可以修改原文后重新翻译。</span></div>
         : <div className="dqt-empty"><Languages /><p>译文会在这里逐段出现</p><span>按 <kbd>Ctrl</kbd> + <kbd>Enter</kbd> 开始翻译</span></div>}
     </div>
-    <footer className="dqt-pane-foot"><span className="dqt-foot-note">{note}</span><CopyButton text={record?.result ?? ''} /></footer>
+    <footer className="dqt-pane-foot">
+      {record && !live ? <RunMeta record={record} historic={historic} onDetails={onDetails} onShowHistory={onShowHistory} />
+        : <span className="dqt-foot-note">{live ? '切换页面不会中断翻译' : ''}</span>}
+      <CopyButton text={record?.result ?? ''} />
+    </footer>
   </section>;
 });

@@ -29,13 +29,21 @@
   --dqt-mono: 'Cascadia Mono', 'Cascadia Code', Consolas, 'Microsoft YaHei UI', monospace;
   --dqt-ease: cubic-bezier(.2, .8, .2, 1);
   --dqt-spring: cubic-bezier(.34, 1.56, .64, 1);
+  /*
+   * Surfaces: ease-in-out for changing size in place, ease-out for arriving, ease-in for leaving. All three keep the motion
+   * spread over the whole duration; front-loaded curves finish in the first frames and read as no animation at all.
+   */
+  --dqt-ease-standard: cubic-bezier(.4, 0, .2, 1);
+  --dqt-ease-enter: cubic-bezier(0, 0, .58, 1);
+  --dqt-ease-exit: cubic-bezier(.4, 0, 1, 1);
   --dqt-rail: 256px;
   position: relative; display: grid; grid-template-columns: var(--dqt-rail) minmax(0, 1fr);
   width: 100%; height: 100%; min-height: 0; overflow: hidden;
   color: var(--dqt-fg); background: var(--dqt-bg); font: 13px/1.5 var(--dqt-font); color-scheme: light dark;
   -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
 }
-.dqt-root[data-rail='hidden'], .dqt-root:not([data-layout='wide']) { grid-template-columns: minmax(0, 1fr); }
+.dqt-root[data-rail='hidden'], .dqt-root:not([data-layout='wide']) { grid-template-columns: 0px minmax(0, 1fr); }
+.dqt-root[data-animate] { transition: grid-template-columns .32s var(--dqt-ease-standard); }
 .dqt-root *, .dqt-root *::before, .dqt-root *::after { box-sizing: border-box; }
 .dqt-root ::selection { background: var(--dqt-selection); }
 .dqt-root svg.lucide { width: 16px; height: 16px; stroke-width: 1.75; flex: none; }
@@ -70,10 +78,17 @@
 .dqt-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--dqt-fg-3); flex: none; }
 .dqt-spin { animation: dqt-spin .9s linear infinite; }
 
-/* History rail */
-.dqt-rail { display: flex; flex-direction: column; min-width: 0; min-height: 0; padding-top: var(--dsh-frame-top-clearance, 0px); background: var(--dqt-bg-2); border-right: 1px solid var(--dqt-line); }
-.dqt-rail[data-overlay] { position: absolute; z-index: 30; inset: 0 auto 0 0; width: min(300px, 86%); box-shadow: 16px 0 48px -16px var(--dqt-scrim); animation: dqt-rail-in .24s var(--dqt-ease); }
-.dqt-scrim { position: absolute; z-index: 29; inset: 0; padding: 0; border: 0; background: var(--dqt-mask); cursor: default; animation: dqt-fade .2s ease; }
+/*
+ * History rail. Docked, it sits right-aligned in a clipping slot whose grid column animates its width, so the rail slides
+ * in and out with the column edge. As a drawer it slides the full width in and back out over a fading scrim.
+ */
+.dqt-rail-slot { grid-area: 1 / 1; display: flex; justify-content: flex-end; min-width: 0; min-height: 0; overflow: hidden; }
+.dqt-main { grid-area: 1 / 2; }
+.dqt-rail { flex: none; width: var(--dqt-rail); display: flex; flex-direction: column; min-height: 0; padding-top: var(--dsh-frame-top-clearance, 0px); background: var(--dqt-bg-2); border-right: 1px solid var(--dqt-line); }
+.dqt-rail[data-overlay] { position: absolute; z-index: 30; inset: 0 auto 0 0; width: min(300px, 86%); box-shadow: 16px 0 48px -16px var(--dqt-scrim); animation: dqt-drawer-in .36s var(--dqt-ease-enter) both; }
+.dqt-rail[data-overlay][data-leaving] { animation: dqt-drawer-out .24s var(--dqt-ease-exit) both; }
+.dqt-scrim { position: absolute; z-index: 29; inset: 0; padding: 0; border: 0; background: var(--dqt-mask); cursor: default; animation: dqt-fade .3s ease both; }
+.dqt-scrim[data-leaving] { pointer-events: none; animation: dqt-fade-out .24s ease both; }
 .dqt-rail-head { flex: none; display: flex; align-items: center; gap: 8px; height: 52px; padding: 0 10px 0 18px; }
 .dqt-rail-head h2 { margin: 0; font-size: 13px; font-weight: 600; }
 .dqt-rail-head .dqt-icon-button { margin-left: auto; }
@@ -106,6 +121,10 @@
 .dqt-main { display: flex; flex-direction: column; min-width: 0; min-height: 0; padding-top: var(--dsh-frame-top-clearance, 0px); }
 .dqt-bar { flex: none; display: flex; align-items: center; gap: 6px; height: 52px; padding: 0 14px 0 20px; }
 .dqt-bar > .dqt-icon-button:first-child { margin-left: -8px; }
+/* Bordered, labeled and counted: the way into the history must read as one at a glance. */
+.dqt-history-button { padding: 0 7px 0 10px; border-color: var(--dqt-line); background: var(--dqt-bg); margin-right: 4px; }
+.dqt-history-button:hover:not(:disabled) { border-color: var(--dqt-line-2); }
+.dqt-history-button .dqt-count { margin-left: 1px; }
 .dqt-bar-title { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 10px; }
 .dqt-bar-title strong { font-size: 14px; font-weight: 600; white-space: nowrap; }
 .dqt-bar-title span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--dqt-fg-3); }
@@ -158,6 +177,13 @@
 .dqt-foot-note { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; font-size: 12px; color: var(--dqt-fg-3); font-variant-numeric: tabular-nums; }
 .dqt-result .dqt-foot-note { text-align: left; padding-left: 8px; }
 .dqt-foot-note[data-tone='warn'] { color: var(--dqt-warn); }
+.dqt-foot-meta { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; }
+.dqt-meta { display: inline-flex; align-items: center; gap: 6px; min-width: 0; height: 28px; padding: 0 8px; border: 0; border-radius: 7px; background: transparent; font-size: 12px; color: var(--dqt-fg-3); font-variant-numeric: tabular-nums; cursor: pointer; transition: background-color .15s, color .15s; }
+.dqt-meta > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dqt-meta svg.lucide { width: 14px; height: 14px; }
+.dqt-meta:hover { background: var(--dqt-hover); color: var(--dqt-fg); }
+.dqt-saved { flex: none; font-size: 12px; animation: dqt-fade .3s ease; }
+.dqt-saved svg.lucide { width: 13px; height: 13px; margin-left: -3px; }
 .dqt-translate { height: 36px; padding: 0 7px 0 12px; border-radius: 10px; gap: 8px; }
 .dqt-translate kbd { min-width: 0; border: 0; padding: 2px 6px; border-radius: 6px; background: color-mix(in srgb, var(--dqt-on-primary) 16%, transparent); color: inherit; opacity: .78; }
 .dqt-stop { height: 36px; border-radius: 10px; }
@@ -191,7 +217,8 @@
 .dqt-status[data-status='failed'] .dqt-dot { background: var(--dqt-danger); }
 
 /* Menus */
-.dqt-menu { position: absolute; z-index: 60; min-width: 196px; max-width: 320px; max-height: min(440px, calc(100% - 16px)); overflow: auto; padding: 5px; border: 1px solid var(--dqt-line); border-radius: 12px; background: var(--dqt-overlay); color: var(--dqt-fg); box-shadow: 0 16px 40px -12px var(--dqt-scrim), 0 2px 6px var(--dqt-mask); animation: dqt-pop .15s var(--dqt-ease); scrollbar-width: thin; }
+.dqt-menu { position: absolute; z-index: 60; min-width: 196px; max-width: 320px; max-height: min(440px, calc(100% - 16px)); overflow: auto; padding: 5px; border: 1px solid var(--dqt-line); border-radius: 12px; background: var(--dqt-overlay); color: var(--dqt-fg); box-shadow: 0 16px 40px -12px var(--dqt-scrim), 0 2px 6px var(--dqt-mask); animation: dqt-pop .2s var(--dqt-ease-enter); scrollbar-width: thin; }
+.dqt-menu[data-leaving] { pointer-events: none; animation: dqt-pop-out .14s var(--dqt-ease-exit) both; }
 .dqt-menu [role^='menuitem'] { display: flex; align-items: center; gap: 10px; width: 100%; height: 34px; padding: 0 10px; border: 0; border-radius: 8px; background: transparent; font-size: 13px; text-align: left; white-space: nowrap; cursor: pointer; }
 .dqt-menu [role^='menuitem'] > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .dqt-menu [role^='menuitem'] svg.lucide { color: var(--dqt-fg-2); }
@@ -210,8 +237,10 @@
 
 /* Dialogs and the settings sheet live in the browser top layer. */
 .dqt-dialog { width: min(460px, calc(100vw - 32px)); max-width: none; max-height: calc(100vh - 48px); padding: 0; border: 1px solid var(--dqt-line); border-radius: 16px; background: var(--dqt-overlay); color: var(--dqt-fg); font: 13px/1.6 var(--dqt-font); box-shadow: 0 28px 72px -20px rgba(0, 0, 0, .38), 0 2px 8px var(--dqt-mask); overflow: hidden; }
-.dqt-dialog[open] { display: flex; flex-direction: column; animation: dqt-dialog-in .22s var(--dqt-ease); }
-.dqt-dialog::backdrop { background: var(--dqt-scrim, rgba(0, 0, 0, .33)); animation: dqt-fade .2s ease; }
+.dqt-dialog[open] { display: flex; flex-direction: column; animation: dqt-dialog-in .28s var(--dqt-ease-enter); }
+.dqt-dialog::backdrop { background: var(--dqt-scrim, rgba(0, 0, 0, .33)); animation: dqt-fade .24s ease; }
+.dqt-dialog[open][data-leaving] { pointer-events: none; animation: dqt-dialog-out .18s var(--dqt-ease-exit) both; }
+.dqt-dialog[data-leaving]::backdrop { animation: dqt-fade-out .2s ease both; }
 .dqt-dialog > header { flex: none; display: flex; align-items: center; gap: 8px; padding: 16px 14px 4px 22px; }
 .dqt-dialog h2 { flex: 1; margin: 0; font-size: 16px; font-weight: 600; }
 .dqt-dialog-body { flex: 1; min-height: 0; overflow: auto; padding: 6px 22px 6px; scrollbar-width: thin; }
@@ -220,7 +249,8 @@
 .dqt-dialog-text { margin: 0 0 6px; font-size: 13.5px; line-height: 1.75; color: var(--dqt-fg-2); }
 .dqt-dialog-error { margin: 12px 0 4px; padding: 8px 12px; border-radius: 9px; background: color-mix(in srgb, var(--dqt-danger) 8%, var(--dqt-bg)); color: var(--dqt-danger); font-size: 12.5px; overflow-wrap: anywhere; animation: dqt-drop .2s var(--dqt-ease); }
 .dqt-sheet { width: min(440px, calc(100vw - 24px)); height: calc(100vh - 24px); max-height: none; margin: 12px 12px 12px auto; }
-.dqt-sheet[open] { animation: dqt-sheet-in .28s var(--dqt-ease); }
+.dqt-sheet[open] { animation: dqt-sheet-in .38s var(--dqt-ease-enter); }
+.dqt-sheet[open][data-leaving] { animation: dqt-sheet-out .26s var(--dqt-ease-exit) both; }
 .dqt-sheet::backdrop { background: var(--dqt-mask, rgba(0, 0, 0, .08)); }
 .dqt-sheet .dqt-dialog-body { padding-bottom: 20px; }
 .dqt-section { padding: 14px 0 18px; }
@@ -234,6 +264,40 @@
 .dqt-row-split .dqt-hint { margin: 0; }
 .dqt-prompt-view { max-height: 300px; overflow: auto; margin: 0 0 12px; padding: 12px 14px; border-radius: 10px; background: var(--dqt-bg-2); white-space: pre-wrap; overflow-wrap: anywhere; font: 12.5px/1.75 var(--dqt-font); color: var(--dqt-fg-2); scrollbar-width: thin; }
 .dqt-prompt-snapshot { max-height: calc(100vh - 260px); }
+
+/* Run details: three headline numbers, where the time went, then the facts and the prompt snapshot. */
+.dqt-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 6px 0 14px; }
+.dqt-stat { display: grid; gap: 1px; min-width: 0; padding: 11px 14px 10px; border: 1px solid var(--dqt-line); border-radius: 12px; background: var(--dqt-bg); }
+.dqt-stat > span { font-size: 12px; color: var(--dqt-fg-3); }
+.dqt-stat strong { font-size: 22px; font-weight: 600; line-height: 1.35; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+.dqt-stat small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; color: var(--dqt-fg-3); font-variant-numeric: tabular-nums; }
+.dqt-details .dqt-hint { margin-top: -4px; }
+/* Styles are injected into the host page, so even attribute selectors stay under a plugin class. */
+.dqt-timeline [data-phase='wait'] { --tone: var(--dqt-line-2); }
+.dqt-timeline [data-phase='think'] { --tone: color-mix(in srgb, var(--dqt-accent) 42%, var(--dqt-bg)); }
+.dqt-timeline [data-phase='write'] { --tone: var(--dqt-accent); }
+.dqt-timeline { margin: 2px 0 16px; }
+.dqt-timeline-bar { display: flex; gap: 2px; height: 8px; border-radius: 999px; overflow: hidden; transform-origin: left; animation: dqt-grow .5s var(--dqt-ease) both; }
+.dqt-timeline-bar i { flex: 1 1 0; min-width: 6px; background: var(--tone); }
+.dqt-timeline-legend { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 9px; font-size: 12px; color: var(--dqt-fg-2); }
+.dqt-timeline-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.dqt-timeline-legend i { width: 8px; height: 8px; border-radius: 3px; background: var(--tone); }
+.dqt-timeline-legend b { font-weight: 500; color: var(--dqt-fg); font-variant-numeric: tabular-nums; }
+.dqt-facts { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 9px 20px; margin: 0; padding: 14px 0; border-top: 1px solid var(--dqt-line); font-size: 13px; }
+.dqt-facts dt { color: var(--dqt-fg-3); white-space: nowrap; }
+.dqt-facts dd { min-width: 0; margin: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.dqt-facts small { display: block; margin-top: 1px; font-size: 12px; color: var(--dqt-fg-3); }
+.dqt-facts code { margin-left: 8px; padding: 1px 6px; border-radius: 5px; background: var(--dqt-bg-2); font: 11.5px/1.6 var(--dqt-mono); color: var(--dqt-fg-2); }
+.dqt-facts .dqt-id { margin: 0; user-select: all; }
+.dqt-facts dd[data-status='failed'] { color: var(--dqt-danger); }
+.dqt-facts dd[data-status='stopped'], .dqt-facts dd[data-status='interrupted'] { color: var(--dqt-warn); }
+.dqt-disclosure { border-top: 1px solid var(--dqt-line); padding: 4px 0 2px; }
+.dqt-disclosure summary { display: flex; align-items: center; gap: 7px; min-height: 38px; list-style: none; font-size: 13px; font-weight: 500; cursor: pointer; }
+.dqt-disclosure summary::-webkit-details-marker { display: none; }
+.dqt-disclosure summary svg.lucide { width: 14px; height: 14px; color: var(--dqt-fg-3); transition: transform .16s var(--dqt-ease); }
+.dqt-disclosure[open] summary svg.lucide { transform: rotate(90deg); }
+.dqt-disclosure summary small { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 400; color: var(--dqt-fg-3); }
+.dqt-details .dqt-prompt-snapshot { max-height: 280px; }
 .dqt-prompt-editor { display: block; width: 100%; min-height: 280px; max-height: calc(100vh - 360px); resize: vertical; padding: 12px 14px; border: 1px solid var(--dqt-line-2); border-radius: 10px; background: var(--dqt-bg); color: var(--dqt-fg); font: 13px/1.75 var(--dqt-font); caret-color: var(--dqt-accent); scrollbar-width: thin; transition: border-color .15s, box-shadow .15s; }
 .dqt-prompt-editor:focus, .dqt-input:focus { outline: none; border-color: var(--dqt-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--dqt-accent) 18%, transparent); }
 .dqt-file { display: grid; gap: 4px; margin: 0 0 12px; }
@@ -284,10 +348,16 @@
 @keyframes dqt-drop { from { opacity: 0; transform: translateY(-4px); } }
 @keyframes dqt-pop { from { opacity: 0; transform: scale(.96) translateY(-2px); } }
 @keyframes dqt-pop-in { from { opacity: 0; transform: scale(.4); } }
-@keyframes dqt-rail-in { from { opacity: 0; transform: translateX(-16px); } }
+@keyframes dqt-drawer-in { from { transform: translateX(-100%); } }
+@keyframes dqt-drawer-out { to { transform: translateX(-100%); } }
+@keyframes dqt-fade-out { to { opacity: 0; } }
+@keyframes dqt-pop-out { to { opacity: 0; transform: scale(.97); } }
+@keyframes dqt-dialog-out { to { opacity: 0; transform: translateY(6px) scale(.98); } }
+@keyframes dqt-sheet-out { to { transform: translateX(calc(100% + 12px)); } }
 @keyframes dqt-dialog-in { from { opacity: 0; transform: translateY(8px) scale(.98); } }
-@keyframes dqt-sheet-in { from { opacity: 0; transform: translateX(28px); } }
+@keyframes dqt-sheet-in { from { transform: translateX(calc(100% + 12px)); } }
 @keyframes dqt-toast-in { from { opacity: 0; transform: translateY(-8px) scale(.98); } }
+@keyframes dqt-grow { from { transform: scaleX(0); } }
 @media (prefers-reduced-motion: reduce) {
   .dqt-root *, .dqt-root *::before, .dqt-root *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; transition-delay: 0s !important; }
 }

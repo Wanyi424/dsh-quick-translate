@@ -29,9 +29,10 @@ try {
       listModels: async () => [{ provider: 'fixture', id: 'test', name: '流式翻译测试' }, { provider: 'fixture', id: 'alt', name: '备用模型' }],
       async *stream(options): AsyncIterable<LlmChunk> {
         modelCalls.push({ source: options.messages[0].content[0].text, prompt: options.system });
-        yield { type: 'reasoning-delta', index: 0, text: 'Hidden thought' }; await pause(400);
+        await pause(300); yield { type: 'reasoning-delta', index: 0, text: 'Hidden thought' }; await pause(400);
         const text = options.messages[0].content[0].text.includes('STOP') ? '这是一段保留的部分译文。'.repeat(40) : 'Clear expression begins with understanding.\n\nA good translation preserves not just the meaning of the original, but also its tone and rhythm. Keep the language natural, the structure clear, and the details accurate.\n\nEvery word deserves a thoughtful choice.';
         for (let i = 0; i < text.length; i += 20) { options.signal.throwIfAborted(); yield { type: 'text-delta', index: 1, text: text.slice(i, i + 20) }; await pause(110); }
+        yield { type: 'usage', usage: { inputTokens: 186, outputTokens: 64, cacheReadTokens: 1024, totalTokens: 1274 } };
         yield { type: 'finish', reason: { kind: 'stop' } };
       },
     },
@@ -137,7 +138,8 @@ try {
   await page.locator('.dqt-file').getByRole('button', { name: '打开文件夹' }).click();
   await until(() => opened.length === 1); assert.equal(opened[0], dirname(f.store.settings.customPromptFile));
   await dark(true); await shot('settings-dark'); await dark(false);
-  await closeDialog(); await noDialog();
+  // Esc slides the settings sheet out before it closes.
+  await page.keyboard.press('Escape'); await page.locator('dialog.dqt-sheet[data-leaving]').waitFor({ state: 'attached' }); await noDialog();
 
   // Streaming, background continuation and reconnection.
   await source.fill('清晰的表达，从理解开始。\n\n好的翻译不仅保留原文的含义，也保留它的语气与节奏。语言要自然，结构要清楚，细节要准确。\n\n每一个词，都值得认真选择。');
@@ -153,9 +155,29 @@ try {
   assert.equal(modelCalls.length, 1); assert.equal(modelCalls[0].prompt, customPrompt);
   await page.locator('.dqt-status[data-status="completed"]').waitFor();
   await page.getByRole('button', { name: '复制译文' }).click(); await page.getByRole('button', { name: '已复制' }).waitFor();
+  // Usage shows under the result: input counts cached tokens too.
+  assert.equal(await page.locator('.dqt-meta').innerText(), '输入 1,210 · 输出 64 tokens');
   await shot('translated-light');
   await dark(true); await shot('translated-dark'); await dark(false);
   assert.match(await page.locator('.dqt-history-preview').first().innerText(), /^Clear expression/);
+  // With the list hidden, the history entry is labeled and counted, and the result links to it.
+  // Docked, the rail folds its column away and stays mounted (inert) until the column transition ends.
+  await page.getByRole('button', { name: '收起历史记录' }).click();
+  await page.locator('.dqt-rail[data-leaving][inert]').waitFor({ state: 'attached' }); await page.locator('.dqt-rail').waitFor({ state: 'detached' });
+  assert.equal(await page.locator('.dqt-history-button .dqt-count').innerText(), '1');
+  await page.locator('.dqt-saved').waitFor(); await shot('rail-collapsed');
+  await page.getByRole('button', { name: '已保存到历史' }).click(); await page.locator('.dqt-rail').waitFor();
+  assert.equal(await page.evaluate(() => localStorage.getItem('dsh-quick-translate:history-rail')), 'shown');
+  assert.equal(await page.locator('.dqt-saved').count(), 0);
+  // Run details: tokens, where the time went, the outcome and the prompt snapshot.
+  await page.locator('.dqt-meta').click(); await page.locator('dialog.dqt-details').waitFor();
+  const stats = await page.locator('.dqt-stat strong').allInnerTexts();
+  assert.deepEqual(stats.slice(0, 2), ['1,210', '64']); assert.match(stats[2], / 秒$/);
+  assert.match(await page.locator('.dqt-stat small').first().innerText(), /缓存命中 1,024/);
+  assert.deepEqual(await page.locator('.dqt-timeline-legend span').evaluateAll(spans => spans.map(span => (span as HTMLElement).dataset.phase)), ['wait', 'think', 'write']);
+  await shot('details');
+  await dark(true); await shot('details-dark'); await dark(false);
+  await closeDialog(); await noDialog();
   // Editing the source marks the shown translation as stale instead of replacing it.
   await source.press('End'); await source.type('补充');
   await page.locator('.dqt-result[data-stale]').waitFor();
@@ -172,6 +194,7 @@ try {
   // Find records by content, not position: list order follows creation timestamps, which a clock correction can reorder.
   assert.equal((await f.store.list()).items.find(item => item.title.startsWith('STOP'))?.status, 'stopped'); assert.ok((await page.locator('.dqt-text').innerText()).length > 0);
   await page.locator('.dqt-status[data-status="stopped"]').waitFor();
+  await page.locator('.dqt-meta').filter({ hasText: '无用量数据' }).waitFor();
 
   // History view: read-only snapshot with its own prompt, and a clear way back.
   const firstRecord = page.locator('.dqt-history-item').filter({ hasText: '清晰的表达' });
@@ -179,9 +202,15 @@ try {
   await page.locator('.dqt-bar[data-mode="history"]').waitFor();
   assert.equal(await source.getAttribute('readonly'), '');
   await shot('history-view');
-  await page.getByRole('button', { name: '更多操作' }).click(); await page.getByRole('menuitem', { name: '查看本次提示词' }).click();
+  await page.getByRole('button', { name: '更多操作' }).click(); await page.getByRole('menuitem', { name: '翻译详情' }).click();
+  await page.locator('.dqt-disclosure summary').click();
   assert.equal(await page.locator('.dqt-prompt-snapshot').innerText(), customPrompt);
-  await page.locator('dialog[open]').getByRole('button', { name: '关闭', exact: true }).last().click();
+  await page.locator('dialog[open]').getByRole('button', { name: '关闭', exact: true }).last().click(); await noDialog();
+  // The trigger toggles its own menu, and the menu sits flush with it (no first-frame scale offset).
+  const more = page.getByRole('button', { name: '更多操作' }); await more.click();
+  const [menuBox, moreBox] = [await page.getByRole('menu', { name: '记录操作' }).boundingBox(), await more.boundingBox()];
+  assert.ok(Math.abs(menuBox!.x + menuBox!.width - moreBox!.x - moreBox!.width) < 1, 'menu right edge aligns with its trigger');
+  await more.click(); await page.getByRole('menu').waitFor({ state: 'detached' });
   await source.focus(); await page.keyboard.press('Escape'); await page.locator('.dqt-bar[data-mode="history"]').waitFor({ state: 'detached' });
   await firstRecord.click({ button: 'right' });
   await page.getByRole('menu', { name: '历史记录操作' }).waitFor(); await shot('history-menu');
@@ -211,12 +240,20 @@ try {
   // Responsive: drawer history at medium widths, stacked panes when narrow, never horizontal overflow.
   await page.setViewportSize({ width: 1000, height: 800 });
   await page.locator('.dqt-root[data-layout="medium"]').waitFor(); await shot('compact');
-  await page.getByRole('button', { name: '展开历史记录' }).click(); await page.locator('.dqt-rail[data-overlay]').waitFor(); await shot('compact-history');
-  await page.locator('.dqt-scrim').click(); await page.locator('.dqt-rail').waitFor({ state: 'detached' });
+  await page.locator('.dqt-history-button').click(); await page.locator('.dqt-rail[data-overlay]').waitFor(); await shot('compact-history');
+  // The drawer slides back out over a fading scrim before it leaves the DOM.
+  await page.locator('.dqt-scrim').click();
+  await page.locator('.dqt-rail[data-leaving]').waitFor({ state: 'attached' }); await page.locator('.dqt-rail').waitFor({ state: 'detached' });
   await page.setViewportSize({ width: 420, height: 820 });
   await page.locator('.dqt-root[data-layout="narrow"]').waitFor(); await shot('narrow');
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
   await dark(true); await shot('narrow-dark'); await dark(false);
+  // Entering at a narrow width never renders the rail: the width is measured before the first paint, so no drawer slides away.
+  await page.evaluate(() => document.getElementById('close-translate')!.click());
+  await page.evaluate(() => { const w = window as unknown as { sawRail: boolean }; w.sawRail = false; new MutationObserver(() => { if (document.querySelector('.dqt-rail')) w.sawRail = true; }).observe(document.body, { subtree: true, childList: true }); });
+  await page.evaluate(() => document.getElementById('open-translate')!.click());
+  await page.locator('.dqt-root[data-layout="narrow"]').waitFor(); await pause(500);
+  assert.equal(await page.evaluate(() => (window as unknown as { sawRail: boolean }).sawRail), false, 'no rail flashes when entering narrow');
   await page.setViewportSize({ width: 1584, height: 992 });
   await page.locator('.dqt-rail').waitFor();
 
@@ -233,7 +270,7 @@ try {
   assert.equal((await f.store.list()).total, 0);
   await page.locator('.dqt-history-empty').waitFor();
 
-  const report = { entryBytes: (await stat('lib/client.js')).size, pageBytes: (await stat('lib/client.page.js')).size, errors, externalRequests: external, longTasks: await page.evaluate(() => (window as unknown as { longTasks: number[] }).longTasks), streaming: 'partial result visible before completion', background: 'no page requests while hidden; returned to same request', modelRequests: modelCalls.length, promptSnapshot: 'exact', promptSource: 'default/custom switch keeps custom.md', staleResult: 'marked after source edit', historyPreview: 'translation first line shown', migration: 'old empty directory removed, new path persisted', stop: 'partial output saved', explorer: 'correct directory, OS launch mocked', historyDeleteAndClear: 'passed', responsiveOverflow: false };
+  const report = { entryBytes: (await stat('lib/client.js')).size, pageBytes: (await stat('lib/client.page.js')).size, errors, externalRequests: external, longTasks: await page.evaluate(() => (window as unknown as { longTasks: number[] }).longTasks), streaming: 'partial result visible before completion', usage: 'shown under the result and in run details', motion: 'rail column and drawer, menus and the settings sheet animate out before unmounting', historyEntry: 'labeled and counted when the list is hidden; result links to it', background: 'no page requests while hidden; returned to same request', modelRequests: modelCalls.length, promptSnapshot: 'exact', promptSource: 'default/custom switch keeps custom.md', staleResult: 'marked after source edit', historyPreview: 'translation first line shown', migration: 'old empty directory removed, new path persisted', stop: 'partial output saved', explorer: 'correct directory, OS launch mocked', historyDeleteAndClear: 'passed', responsiveOverflow: false };
   assert.deepEqual(errors, []); assert.deepEqual(external, []);
   await writeFile('artifacts/verification.json', JSON.stringify(report, null, 2)); console.log(JSON.stringify(report, null, 2));
 } catch (error) {

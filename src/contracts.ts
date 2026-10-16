@@ -8,10 +8,18 @@ export interface Model { provider: string; id: string; name: string; providerNam
 export type PromptMode = 'default' | 'custom';
 export interface Settings { directory: string; prompt: string; provider: string; model: string; promptMode: PromptMode; defaultPromptFile: string; customPromptFile: string; hasCustomPrompt: boolean; promptError?: string }
 export interface SettingsUpdate { prompt?: string; provider?: string; model?: string }
+/** DSH TokenUsage: inputTokens excludes cache reads and writes; outputTokens includes reasoning. */
+export interface Usage { inputTokens: number; outputTokens: number; totalTokens?: number; cacheReadTokens?: number; cacheWriteTokens?: number; reasoningTokens?: number }
 export interface Translation {
   id: string; createdAt: string; updatedAt: string; source: string; result: string;
   provider: string; model: string; modelName: string; prompt: string; status: Status;
   error?: string; saveError?: string; phase?: 'connecting' | 'thinking' | 'translating';
+  /** Reported by the model at the end of the stream; absent in older records and usually after Stop. */
+  usage?: Usage;
+  /** Milliseconds after createdAt until the first streamed token (thinking or text) and the first translated text. */
+  firstTokenMs?: number; firstTextMs?: number;
+  /** DSH failure code of a provider error, such as RATE_LIMIT. */
+  errorCode?: string;
 }
 export interface Summary { id: string; createdAt: string; title: string; preview: string; status: Status; modelName: string }
 export interface HistoryPage { items: Summary[]; total: number; next: number | null; warnings: string[] }

@@ -1,6 +1,6 @@
 {
   "name": "dsh-quick-translate",
-  "version": "0.2.0",
+  "version": "0.2.4",
   "description": "快捷翻译：DSH 模型、中英文提示词翻译、流式输出与本地历史记录。",
   "type": "module",
   "license": "MIT",

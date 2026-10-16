@@ -26,6 +26,24 @@ test('DSH model route and exact prompt/source are used; reasoning is excluded, f
     assert.equal((await f.store.read(r.id)).prompt, options!.system); assert.ok(!('tools' in options!));
   } finally { await runtime.dispose(); await f.cleanup(); }
 });
+test('token usage, phase timing and the provider failure code are kept with the record', async () => {
+  const f = await fixture(); let fail = false;
+  const runtime = new Runtime(f.store, fake(async function* () {
+    await pause(30); yield { type: 'reasoning-delta', index: 0, text: 'thinking' };
+    await pause(30); yield { type: 'text-delta', index: 1, text: '你好' };
+    yield { type: 'usage', usage: { inputTokens: 12, outputTokens: 34, cacheReadTokens: 1000, totalTokens: 1046 } };
+    yield { type: 'finish', reason: fail ? { kind: 'error', failure: { message: '请求过于频繁', code: 'RATE_LIMIT' } } : { kind: 'stop' } };
+  }));
+  try {
+    await configured(f.store); const r = await runtime.start('Hello'); await until(() => !runtime.running);
+    const saved = await f.store.read(r.id);
+    assert.deepEqual(saved.usage, { inputTokens: 12, outputTokens: 34, cacheReadTokens: 1000, totalTokens: 1046 });
+    assert.ok(saved.firstTokenMs! >= 25 && saved.firstTextMs! - saved.firstTokenMs! >= 25, 'thinking time sits between the two marks');
+    assert.equal(saved.errorCode, undefined);
+    fail = true; const failed = await runtime.start('Again'); await until(() => !runtime.running);
+    assert.equal((await f.store.read(failed.id)).errorCode, 'RATE_LIMIT'); assert.equal(runtime.active?.status, 'failed');
+  } finally { await runtime.dispose(); await f.cleanup(); }
+});
 test('stream subscriber receives partial output; disconnect does not cancel; reconnect snapshots progress; no idle update loop', async () => {
   const f = await fixture(); const runtime = new Runtime(f.store, fake(async function* () {
     yield { type: 'text-delta', text: 'Hello' }; await pause(240); yield { type: 'text-delta', text: ' world' }; await pause(200); yield { type: 'finish', reason: { kind: 'stop' } };

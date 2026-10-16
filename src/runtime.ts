@@ -1,11 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import { MAX_OUTPUT, MAX_SOURCE, type Model, type StreamEvent, type Translation } from './contracts';
+import { MAX_OUTPUT, MAX_SOURCE, type Model, type StreamEvent, type Translation, type Usage } from './contracts';
 import { DEFAULT_PROMPT } from './prompts';
 import { Store } from './storage';
 
 export interface LlmChunk {
   type: string; index?: number; text?: string; blockType?: string; block?: { type: string; text?: string };
-  reason?: { kind: string; failure?: { message: string; code?: string } };
+  usage?: Usage; reason?: { kind: string; failure?: { message: string; code?: string } };
 }
 export interface Llm {
   listProviders(): { id: string; name: string }[];
@@ -81,6 +81,7 @@ export class Runtime {
     let iterator: AsyncIterator<LlmChunk> | undefined;
     let lastSave = Date.now(), finished = false;
     const timeout = setTimeout(() => abort.abort(new Error('翻译已超过 10 分钟，已停止并保留现有内容。')), this.timeoutMs);
+    const since = () => Date.now() - Date.parse(r.createdAt);
     try {
       const stream = this.llm.stream({ provider: r.provider, model: r.model, messages: [{ id: randomUUID(), role: 'user', content: [{ type: 'text', text: r.source }], source: { kind: 'dsh-quick-translate' } }], system: r.prompt, purpose: 'quick-translate', signal: abort.signal });
       iterator = stream[Symbol.asyncIterator]();
@@ -88,14 +89,20 @@ export class Runtime {
         const next = await nextWithSignal(iterator, abort.signal);
         if (next.done) break;
         const c = next.value, index = c.index ?? 0;
+        // DSH sends usage once, just before finish; the final save below persists it.
+        if (c.type === 'usage' && c.usage) { r.usage = { ...c.usage }; continue; }
         if (c.type === 'text-delta' && typeof c.text === 'string') { blocks.set(index, (blocks.get(index) ?? '') + c.text); r.phase = 'translating'; }
         else if (c.type === 'block-end' && c.block?.type === 'text') { blocks.set(index, c.block.text ?? ''); r.phase = 'translating'; }
         else if (c.type === 'reasoning-delta' && r.phase !== 'translating') r.phase = 'thinking';
         else if (c.type === 'finish') {
           finished = true;
+          if (c.reason?.failure?.code) r.errorCode = c.reason.failure.code;
           if (c.reason?.kind !== 'stop') throw new Error(c.reason?.kind === 'max-tokens' ? '模型已达到输出长度上限，译文可能不完整。' : c.reason?.failure?.message || '模型未正常完成翻译。');
           break;
         }
+        // Phase changes mark the timeline: first token of any kind, then the first translated text.
+        if (r.phase !== 'connecting') r.firstTokenMs ??= since();
+        if (r.phase === 'translating') r.firstTextMs ??= since();
         const text = [...blocks.values()].join('');
         if (text.length > MAX_OUTPUT) { r.result = text.slice(0, MAX_OUTPUT); throw new Error('译文达到 240,000 字符上限，已停止。'); }
         r.result = text; r.updatedAt = new Date().toISOString(); this.notify();
