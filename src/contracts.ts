@@ -13,7 +13,7 @@ export interface Translation {
   provider: string; model: string; modelName: string; prompt: string; status: Status;
   error?: string; saveError?: string; phase?: 'connecting' | 'thinking' | 'translating';
 }
-export interface Summary { id: string; createdAt: string; title: string; status: Status; modelName: string }
+export interface Summary { id: string; createdAt: string; title: string; preview: string; status: Status; modelName: string }
 export interface HistoryPage { items: Summary[]; total: number; next: number | null; warnings: string[] }
 export interface Migration { directory: string; moved: number; oldDirectoryRemoved: boolean; warnings: string[] }
 export interface Bootstrap { settings: Settings; active: Translation | null; defaultPrompt: string }

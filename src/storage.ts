@@ -10,6 +10,8 @@ import { translationDataDirectory } from './data-paths';
 const ID = /^\d{13}-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const owned = (name: string) => name.endsWith('.json') && ID.test(name.slice(0, -5));
 const missing = (error: unknown) => (error as NodeJS.ErrnoException).code === 'ENOENT';
+/** One-line list label; the full text stays in the record file. */
+const line = (text: string) => text.replace(/\s+/g, ' ').trim().slice(0, 80);
 export async function atomicText(file: string, text: string) {
   const temp = `${file}.${randomUUID()}.tmp`;
   try {
@@ -128,7 +130,7 @@ export class Store {
       for (const file of files.slice(offset, offset + 25)) {
         try {
           const r = await this.readRecord(file.slice(0, -5));
-          items.push({ id: r.id, createdAt: r.createdAt, title: r.source.replace(/\s+/g, ' ').slice(0, 72), status: r.status === 'running' && r.id !== activeId ? 'interrupted' : r.status, modelName: r.modelName });
+          items.push({ id: r.id, createdAt: r.createdAt, title: line(r.source), preview: line(r.result), status: r.status === 'running' && r.id !== activeId ? 'interrupted' : r.status, modelName: r.modelName });
         } catch { warnings.push(`${file} 无法读取，原文件已保留。`); }
       }
       return { items, total: files.length, next: offset + 25 < files.length ? offset + 25 : null, warnings };

@@ -4,15 +4,18 @@ import { Controller } from './controller';
 import type { ClientContext } from './types';
 declare const require: { async<T>(path: string): Promise<T> };
 export const inject = ['slots', 'locale'];
+const hint: React.CSSProperties = { height: '100%', display: 'grid', placeContent: 'center', gap: 12, justifyItems: 'center', color: 'var(--dsw-alias-label-tertiary)', font: "13px 'Segoe UI', 'Microsoft YaHei UI', sans-serif" };
 function LazyPage({ controller }: { controller: Controller }) {
   const [Page, setPage] = useState<React.ComponentType<{ controller: Controller }> | null>(null);
-  const [failed, setFailed] = useState(false), [attempt, setAttempt] = useState(0);
+  const [failed, setFailed] = useState(false), [attempt, setAttempt] = useState(0), [slow, setSlow] = useState(false);
   useEffect(() => {
-    let live = true;
+    let live = true; const timer = setTimeout(() => setSlow(true), 200);
     require.async<typeof import('./page')>('./client.page.js').then(m => { if (live) setPage(() => m.Page); }, () => { if (live) setFailed(true); });
-    return () => { live = false; };
+    return () => { live = false; clearTimeout(timer); };
   }, [attempt]);
-  return Page ? <Page controller={controller} /> : <div style={{ padding: 28, color: 'var(--dsw-alias-label-secondary)' }} role="status">{failed ? <>翻译页面加载失败。<button onClick={() => { setFailed(false); setAttempt(n => n + 1); }}>重试</button></> : '正在打开快捷翻译…'}</div>;
+  if (Page) return <Page controller={controller} />;
+  // A local chunk usually arrives within a frame or two; only show the hint when it does not.
+  return <div style={hint} role="status">{failed ? <>翻译页面加载失败<button onClick={() => { setFailed(false); setAttempt(n => n + 1); }}>重试</button></> : slow ? '正在打开快捷翻译…' : null}</div>;
 }
 export function apply(ctx: ClientContext) {
   const controller = new Controller();

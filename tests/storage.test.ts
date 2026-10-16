@@ -28,6 +28,8 @@ test('history is paged, skips malformed records, and clear preserves unrelated f
     for (const r of records) await f.store.save(r);
     const a = await f.store.list(), b = await f.store.list(25);
     assert.equal(a.items.length, 25); assert.equal(a.next, 25); assert.equal(b.items.length, 3); assert.equal(b.next, null);
+    // List rows carry one-line source and translation labels; whitespace collapses for the history rail.
+    assert.equal(a.items[0].title, 'Hello 世界'); assert.equal(a.items[0].preview, '你好 World');
     await writeFile(join(f.store.settings.directory, `${records[0].id}.json`), '{oops');
     assert.equal((await f.store.list(25)).warnings.length, 1);
     await writeFile(join(f.store.settings.directory, 'keep.txt'), 'mine'); await mkdir(join(f.store.settings.directory, 'folder'));

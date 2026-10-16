@@ -1,149 +1,166 @@
-import React, { useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { ArrowRight, Check, Copy, FolderOpen, History, Languages, LoaderCircle, MoreHorizontal, PanelLeftClose, Plus, RefreshCw, Settings2, Square, Trash2, X } from 'lucide-react';
-import { Controller } from './controller';
-import { MAX_PROMPT, MAX_SOURCE, type Status } from './contracts';
+import React, { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { ArrowLeft, CircleAlert, Copy, History, LoaderCircle, MoreHorizontal, PanelLeftClose, PenLine, ScrollText, Settings2, Trash2, X } from 'lucide-react';
+import type { Controller } from './controller';
+import type { HistoryPage, Status, Summary, Translation } from './contracts';
+import { STATUS, fullTime, groupOf, startOfDay, timeOf } from './format';
+import { LayerContext, Menu, Toast, anchorAt, anchorFrom, copyText, type MenuAnchor, type MenuEntry } from './ui';
+import { ResultPane, SourcePane } from './workspace';
+import { ConfirmDialog, MigrateDialog, PromptDialog, SettingsSheet } from './settings';
 import css from './styles.css';
 
-const labels: Record<Status, string> = { running: '翻译中', completed: '已完成', stopped: '已停止', failed: '未完成', interrupted: '已中断' };
-const date = (value: string) => new Date(value).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false });
-function Dialog({ title, children, onClose, busy = false }: { title: string; children: React.ReactNode; onClose(): void; busy?: boolean }) {
-  const ref = useRef<HTMLDialogElement>(null);
-  useEffect(() => { ref.current?.showModal(); return () => ref.current?.close(); }, []);
-  return <dialog ref={ref} className="dqt-dialog" aria-label={title} onCancel={e => { e.preventDefault(); if (!busy) onClose(); }}>
-    <header><h2>{title}</h2><button aria-label="关闭对话框" disabled={busy} onClick={onClose}><X /></button></header>{children}
-  </dialog>;
+type Layout = 'wide' | 'medium' | 'narrow';
+type Modal = { kind: 'migrate' } | { kind: 'clear' } | { kind: 'delete'; id: string } | { kind: 'prompt'; record: Translation } | null;
+const RAIL_KEY = 'dsh-quick-translate:history-rail';
+function readRail() { try { return localStorage.getItem(RAIL_KEY) !== 'hidden'; } catch { return true; } }
+function saveRail(shown: boolean) { try { localStorage.setItem(RAIL_KEY, shown ? 'shown' : 'hidden'); } catch { /* Preference only. */ } }
+
+/** Plugin width, not window width: the host sidebar and window size both change the space available. */
+function useLayout(element: HTMLElement | null): Layout {
+  const [layout, setLayout] = useState<Layout>('wide');
+  useLayoutEffect(() => {
+    if (!element) return;
+    const measure = (width: number) => setLayout(width >= 1040 ? 'wide' : width >= 720 ? 'medium' : 'narrow');
+    measure(element.getBoundingClientRect().width);
+    const observer = new ResizeObserver(([entry]) => measure(entry.contentRect.width));
+    observer.observe(element); return () => observer.disconnect();
+  }, [element]);
+  return layout;
 }
-export function Page({ controller: c }: { controller: Controller }) {
-  const s = useSyncExternalStore(c.subscribe, c.snapshot), [rail, setRail] = useState(() => window.innerWidth > 900);
-  const [modal, setModal] = useState<'settings' | 'directory' | 'prompt' | 'delete' | 'clear' | null>(null);
-  const [prompt, setPrompt] = useState(''), [directory, setDirectory] = useState(''), [localError, setLocalError] = useState('');
-  const [copied, setCopied] = useState(false), [picking, setPicking] = useState(false);
-  const menu = useRef<HTMLDetailsElement>(null), output = useRef<HTMLDivElement>(null), sticky = useRef(true), copyTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const record = s.selected ?? s.current, running = c.running, historic = !!s.selected, busy = s.busy || picking;
-  const modified = !historic && !!s.current && s.draft !== s.current.source;
-  useEffect(() => c.attach(), [c]);
-  useEffect(() => () => clearTimeout(copyTimer.current), []);
-  useEffect(() => { if (!historic && sticky.current && output.current) output.current.scrollTop = output.current.scrollHeight; }, [record?.result, historic]);
-  useEffect(() => { sticky.current = true; if (output.current) output.current.scrollTop = 0; }, [record?.id]);
+
+const HistoryRail = memo(function HistoryRail({ c, history, loaded, loadingMore, viewingId, currentId, currentStatus, running, busy, overlay, onPick, onCollapse, onDelete }: {
+  c: Controller; history: HistoryPage; loaded: boolean; loadingMore: boolean; viewingId?: string; currentId?: string; currentStatus?: Status;
+  running: boolean; busy: boolean; overlay: boolean; onPick(id: string): void; onCollapse(): void; onDelete(id: string): void;
+}) {
+  const list = useRef<HTMLDivElement>(null), sentinel = useRef<HTMLDivElement>(null);
+  const [menu, setMenu] = useState<{ anchor: MenuAnchor; item: Summary } | null>(null);
+  const closeMenu = useCallback(() => setMenu(null), []);
+  const today = startOfDay(new Date());
+  const groups = useMemo(() => {
+    const result: [string, Summary[]][] = [];
+    for (const item of history.items) {
+      const label = groupOf(item.createdAt, today), last = result.at(-1);
+      if (last?.[0] === label) last[1].push(item); else result.push([label, [item]]);
+    }
+    return result;
+  }, [history.items, today]);
   useEffect(() => {
-    const close = (event: MouseEvent) => { if (menu.current && !menu.current.contains(event.target as Node)) menu.current.open = false; };
-    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape' && menu.current) menu.current.open = false; };
-    document.addEventListener('click', close); document.addEventListener('keydown', escape);
-    return () => { document.removeEventListener('click', close); document.removeEventListener('keydown', escape); };
-  }, []);
-  const run = (action: () => Promise<unknown>) => { void c.perform(action).catch(() => {}); };
-  const openModal = (next: typeof modal) => {
-    setLocalError(''); setPrompt(s.settings?.prompt ?? ''); setDirectory(s.settings?.directory ?? ''); setModal(next); if (menu.current) menu.current.open = false;
-  };
-  const submitDialog = async (fn: () => Promise<unknown>) => {
-    setLocalError(''); try { await c.perform(fn); setModal(null); } catch (error) { setLocalError(error instanceof Error ? error.message : String(error)); }
-  };
-  const copy = async () => {
-    if (!record?.result) return;
-    try {
-      try { await navigator.clipboard.writeText(record.result); } catch {
-        const textarea = document.createElement('textarea'); textarea.className = 'dqt-copy-buffer'; textarea.value = record.result;
-        output.current!.append(textarea); textarea.select(); const ok = document.execCommand('copy'); textarea.remove(); if (!ok) throw new Error('复制失败，请选择译文后手动复制。');
-      }
-      setCopied(true); clearTimeout(copyTimer.current); copyTimer.current = setTimeout(() => setCopied(false), 1600);
-    } catch (error) { c.report(error); }
-  };
-  const chooseDirectory = async () => {
-    setPicking(true); setLocalError('');
-    try { const path = await window.__DSH_DIRECTORY_PICKER__!.pick(); if (path) setDirectory(path); }
-    catch { setLocalError('未能打开目录选择器，可直接填写完整路径。'); } finally { setPicking(false); }
-  };
-  return <div className={`dqt-root ${rail ? '' : 'dqt-hide-rail'}`}>
+    const target = sentinel.current; if (!target) return;
+    const observer = new IntersectionObserver(entries => { if (entries.some(entry => entry.isIntersecting)) void c.loadMore(); }, { root: list.current, rootMargin: '160px' });
+    observer.observe(target); return () => observer.disconnect();
+  }, [c, history.next, history.items.length]);
+  const entries = (item: Summary): MenuEntry[] => [
+    { label: '复制译文', icon: <Copy />, disabled: !item.preview, onSelect: () => void c.read(item.id).then(record => copyText(record.result)).catch(c.report) },
+    { label: '用此原文重译', icon: <PenLine />, disabled: running || busy, onSelect: () => void c.read(item.id).then(record => c.newTranslation(record.source)).catch(c.report) },
+    'separator',
+    { label: '删除', icon: <Trash2 />, danger: true, disabled: busy || (running && item.id === currentId), onSelect: () => onDelete(item.id) },
+  ];
+  return <aside className="dqt-rail" data-overlay={overlay || undefined} aria-label="翻译历史">
+    <header className="dqt-rail-head"><h2>历史记录</h2>{history.total > 0 && <span className="dqt-count">{history.total.toLocaleString()}</span>}
+      <button type="button" className="dqt-icon-button" aria-label="收起历史记录" title="收起历史记录" onClick={onCollapse}><PanelLeftClose /></button></header>
+    <div className="dqt-history" ref={list}>
+      {groups.map(([label, items]) => <section key={label} aria-label={label}><h3>{label}</h3>
+        {items.map(item => {
+          const status = item.id === currentId && currentStatus ? currentStatus : item.status;
+          const preview = status === 'completed' ? item.preview : status === 'running' ? '翻译中…' : `${STATUS[status]}${item.preview ? ` · ${item.preview}` : ''}`;
+          return <button key={item.id} type="button" className="dqt-history-item" data-status={status} aria-current={item.id === viewingId ? 'true' : undefined}
+            onClick={() => onPick(item.id)} onContextMenu={event => { event.preventDefault(); setMenu({ anchor: anchorAt(event), item }); }}>
+            <span className="dqt-history-title">{item.title || '（空白原文）'}</span>
+            <time dateTime={item.createdAt}>{timeOf(item.createdAt, today)}</time>
+            <span className="dqt-history-preview">{status !== 'completed' && <i className="dqt-dot" />}<span>{preview}</span></span>
+          </button>;
+        })}
+      </section>)}
+      {loaded && !history.total && <div className="dqt-history-empty"><History /><p>还没有翻译记录</p><span>每次翻译都会自动保存在这里，随时回看、复制或重译。</span></div>}
+      {history.next !== null && <div ref={sentinel} className="dqt-history-more" aria-hidden>{loadingMore && <LoaderCircle className="dqt-spin" />}</div>}
+      {history.warnings.length > 0 && <p className="dqt-history-warning">{history.warnings.join(' ')}</p>}
+    </div>
+    {menu && <Menu anchor={menu.anchor} label="历史记录操作" entries={entries(menu.item)} onClose={closeMenu} />}
+  </aside>;
+});
+
+const TopBar = memo(function TopBar({ c, viewing, current, railShown, running, busy, loaded, onToggleRail, onSettings, onDelete, onPrompt }: {
+  c: Controller; viewing: Translation | null; current: Translation | null; railShown: boolean; running: boolean; busy: boolean; loaded: boolean;
+  onToggleRail(): void; onSettings(): void; onDelete(id: string): void; onPrompt(record: Translation): void;
+}) {
+  const [menu, setMenu] = useState<MenuAnchor | null>(null);
+  const closeMenu = useCallback(() => setMenu(null), []);
+  const record = viewing ?? current;
+  const entries: MenuEntry[] = record ? [
+    { label: '查看本次提示词', icon: <ScrollText />, onSelect: () => onPrompt(record) },
+    'separator',
+    { label: '删除这条记录', icon: <Trash2 />, danger: true, disabled: busy || (running && record.id === current?.id), onSelect: () => onDelete(record.id) },
+  ] : [];
+  return <header className="dqt-bar" data-mode={viewing ? 'history' : undefined}>
+    {!railShown && <button type="button" className="dqt-icon-button" aria-label="展开历史记录" title="历史记录" onClick={onToggleRail}><History /></button>}
+    {viewing ? <>
+      <button type="button" className="dqt-button dqt-back" title="返回当前翻译（Esc）" onClick={() => c.showCurrent()}><ArrowLeft /><span>返回</span></button>
+      <div className="dqt-bar-title"><strong>历史记录</strong><span>{fullTime(viewing.createdAt)} · {viewing.modelName}</span></div>
+      {running && <button type="button" className="dqt-live" onClick={() => c.showCurrent()}><i className="dqt-dot" />翻译进行中</button>}
+    </> : <div className="dqt-bar-title"><strong>快捷翻译</strong></div>}
+    {record && <button type="button" className="dqt-icon-button" aria-label="更多操作" title="更多操作" aria-haspopup="menu" aria-expanded={!!menu}
+      onClick={event => setMenu(menu ? null : anchorFrom(event.currentTarget))}><MoreHorizontal /></button>}
+    {!viewing && <button type="button" className="dqt-button" disabled={!loaded} onClick={onSettings}><Settings2 /><span>设置</span></button>}
+    {menu && record && <Menu anchor={menu} label="记录操作" entries={entries} onClose={closeMenu} />}
+  </header>;
+});
+
+export function Page({ controller: c }: { controller: Controller }) {
+  const s = useSyncExternalStore(c.subscribe, c.snapshot);
+  const [root, setRoot] = useState<HTMLDivElement | null>(null);
+  const layout = useLayout(root), wide = layout === 'wide';
+  const [railPref, setRailPref] = useState(readRail), [railOverlay, setRailOverlay] = useState(false);
+  const [sheet, setSheet] = useState(false), [modal, setModal] = useState<Modal>(null), [promptDraft, setPromptDraft] = useState<string | null>(null);
+  useEffect(() => c.attach(), [c]);
+  useEffect(() => { if (wide) setRailOverlay(false); }, [wide]);
+  const railShown = wide ? railPref : railOverlay;
+  const toggleRail = useCallback(() => {
+    if (wide) setRailPref(shown => { saveRail(!shown); return !shown; }); else setRailOverlay(shown => !shown);
+  }, [wide]);
+  const pick = useCallback((id: string) => { void c.open(id).catch(c.report); setRailOverlay(false); }, [c]);
+  const askDelete = useCallback((id: string) => setModal({ kind: 'delete', id }), []);
+  const showPrompt = useCallback((record: Translation) => setModal({ kind: 'prompt', record }), []);
+  const openSettings = useCallback(() => setSheet(true), []);
+  const closeModal = () => setModal(null);
+  const viewing = s.selected, running = s.current?.status === 'running', busy = s.busy;
+  const ready = !!s.settings?.model && s.models.some(m => m.provider === s.settings!.provider && m.id === s.settings!.model);
+  const modified = !viewing && !!s.current && s.draft !== s.current.source;
+  const canStart = !busy && !running && !viewing && !!s.draft.trim() && ready && !s.current?.saveError;
+  return <div ref={setRoot} className="dqt-root" data-layout={layout} data-rail={railShown ? 'shown' : 'hidden'}
+    onKeyDown={event => { if (event.key === 'Escape' && viewing && !event.defaultPrevented && !(event.target as Element).closest('dialog')) c.showCurrent(); }}>
     <style>{css}</style>
-    {rail && <aside className="dqt-rail" aria-label="翻译历史">
-      <div className="dqt-rail-top"><span><History />历史记录</span><button aria-label="收起历史记录" onClick={() => setRail(false)}><PanelLeftClose /></button></div>
-      <button className="dqt-new" disabled={busy || running || !!s.current?.saveError} onClick={() => c.newTranslation()}><Plus />新建翻译</button>
-      <nav className="dqt-history" aria-label="历史记录列表">
-        {s.history.items.map(item => <button key={item.id} className={`dqt-history-item ${record?.id === item.id ? 'dqt-selected' : ''}`} aria-current={record?.id === item.id ? 'page' : undefined} disabled={busy} onClick={() => run(async () => { await c.open(item.id); if (window.innerWidth <= 900) setRail(false); })}>
-          <span className="dqt-history-title">{item.title}</span><span className="dqt-history-meta"><time>{date(item.createdAt)}</time><span>{item.id === s.current?.id ? labels[s.current.status] : labels[item.status]}</span></span>
-        </button>)}
-        {s.loaded && !s.history.total && <p className="dqt-history-empty">还没有翻译记录<br />翻译后会自动保存在这里。</p>}
-        {s.history.next !== null && <button className="dqt-load-more" disabled={busy} onClick={() => run(() => c.history(true))}>加载更多</button>}
-        {s.history.warnings.length > 0 && <p className="dqt-muted">{s.history.warnings.join(' ')}</p>}
-      </nav>
-      <footer className="dqt-rail-bottom"><span>{s.history.total} 条记录</span><button aria-label="刷新历史记录" disabled={busy} onClick={() => run(() => c.history())}><RefreshCw /></button><button aria-label="清空历史记录" disabled={busy || running || !s.history.total} onClick={() => openModal('clear')}><Trash2 /></button></footer>
-    </aside>}
-    <main className="dqt-main">
-      <header className="dqt-header">
-        {!rail && <button aria-label="展开历史记录" onClick={() => setRail(true)}><History /></button>}
-        <div className="dqt-heading"><h1>快捷翻译</h1><p>中英文翻译，由你的提示词决定。</p></div>
-        <button disabled={!s.loaded || busy} onClick={() => openModal('settings')}><Settings2 /><span>翻译设置</span></button>
-        <details ref={menu} className="dqt-more"><summary aria-label="更多操作"><MoreHorizontal /></summary><div className="dqt-menu">
-          <button onClick={() => { menu.current!.open = false; run(() => c.openDirectory()); }} disabled={!s.loaded || busy}><FolderOpen />在资源管理器打开</button>
-          <button onClick={() => openModal('directory')} disabled={!s.loaded || busy || running}><FolderOpen />历史记录保存位置</button>
-          {record && <><hr /><button onClick={() => openModal('prompt')}>查看本次提示词</button><button className="dqt-danger" disabled={busy || (running && record.id === s.current?.id)} onClick={() => openModal('delete')}><Trash2 />删除这条记录</button></>}
-        </div></details>
-      </header>
-      {s.error && <div className="dqt-alert" role="alert"><span>{s.error}</span><button onClick={c.dismissError.bind(c)} aria-label="关闭错误提示"><X /></button></div>}
-      {s.notice && <div className="dqt-notice" role="status"><span>{s.notice}</span><button onClick={c.dismissNotice.bind(c)} aria-label="关闭提示"><X /></button></div>}
-      {!s.loaded ? <div className="dqt-loading"><LoaderCircle />正在读取翻译设置…{s.error && <button onClick={() => run(() => c.reload())}>重试</button>}</div> : <>
-        <div className="dqt-controls">
-          {historic ? <><span className="dqt-record-label">{date(record!.createdAt)} · {record!.modelName}</span><button disabled={busy || running} onClick={() => c.newTranslation(record!.source)}>用原文新建<ArrowRight /></button></> : <>
-            <label className="dqt-model"><span>翻译模型</span><select aria-label="翻译模型" value={s.settings ? JSON.stringify([s.settings.provider, s.settings.model]) : ''} disabled={busy || running} onChange={event => { const [provider, model] = JSON.parse(event.target.value); run(() => c.saveSettings({ provider, model })); }}>
-              <option value={JSON.stringify(['', ''])} disabled>选择 DSH 模型</option>
-              {s.settings?.model && !s.models.some(m => m.provider === s.settings!.provider && m.id === s.settings!.model) && <option value={JSON.stringify([s.settings.provider, s.settings.model])} disabled>{s.settings.model}（不可用）</option>}
-              {s.models.map(m => <option key={JSON.stringify([m.provider, m.id])} value={JSON.stringify([m.provider, m.id])}>{m.name} · {m.providerName}</option>)}
-            </select></label>
-            <button aria-label="刷新模型列表" title="在 DSH 设置中修改模型后，点击刷新" disabled={busy || running} onClick={() => run(() => c.refreshModels())}><RefreshCw /></button>
-            <span className="dqt-controls-hint">{s.models.length ? '使用 DSH 已配置的模型' : '请先在 DSH 设置中配置模型，然后刷新'}</span>
-          </>}
-        </div>
-        {s.modelWarnings.length > 0 && <div className="dqt-inline-warning">{s.modelWarnings.join(' ')}</div>}
-        {running && (historic || !s.connected) && <div className="dqt-notice"><span>当前翻译正在后台进行。</span><button onClick={() => c.showCurrent()}>返回当前翻译</button>{!s.connected && <button disabled={busy} onClick={() => run(() => c.reload())}>重新连接</button>}<button disabled={busy} onClick={() => run(() => c.stop())}>停止</button></div>}
-        <div className="dqt-workspace">
-          <section className="dqt-pane dqt-source">
-            <div className="dqt-pane-heading"><h2>原文</h2><span>{(historic ? record!.source : s.draft).length.toLocaleString()} / {MAX_SOURCE.toLocaleString()}</span>{!historic && <button disabled={busy || running || !s.draft} onClick={() => c.setDraft('')}>清空</button>}</div>
-            <textarea aria-label="待翻译原文" spellCheck={false} maxLength={MAX_SOURCE} readOnly={historic || running || busy} value={historic ? record!.source : s.draft} onChange={event => c.setDraft(event.target.value)} placeholder={'输入或粘贴需要翻译的内容…\n\n支持中文与英文，保留段落和原文格式。'} onKeyDown={event => { if ((event.ctrlKey || event.metaKey) && event.key === 'Enter' && !busy && !running && !historic && s.draft.trim() && s.settings?.model) { event.preventDefault(); run(() => c.start()); } }} />
-            <footer className="dqt-source-footer" data-history={historic}><span>{historic ? '历史原文 · 只读' : 'Ctrl + Enter 翻译'}</span>{!historic && (running ? <button className="dqt-stop" disabled={busy} onClick={() => run(() => c.stop())}><Square />停止翻译</button> : <button className="dqt-primary" disabled={busy || !s.draft.trim() || !s.settings?.model || !!s.current?.saveError} onClick={() => run(() => c.start())}>{busy ? <LoaderCircle className="dqt-spin" /> : <Languages />}{s.current ? '重新翻译' : '开始翻译'}</button>)}</footer>
-          </section>
-          <section className="dqt-pane dqt-result">
-            <div className="dqt-pane-heading"><h2>译文</h2><span role="status">{record ? record.status === 'running' ? <><i className="dqt-pulse" />{record.phase === 'thinking' ? '模型正在思考…' : record.phase === 'translating' ? '正在翻译…' : '正在连接模型…'}</> : labels[record.status] : ''}</span><button onClick={() => void copy()} disabled={!record?.result} aria-label="复制译文">{copied ? <Check /> : <Copy />}{copied ? '已复制' : '复制'}</button></div>
-            {modified && <div className="dqt-inline-warning">原文已修改，下面仍是上一次译文。</div>}
-            {record?.error && <div className="dqt-inline-warning" role="status">{record.error}</div>}
-            {record?.saveError && <div className="dqt-alert" role="alert"><span>{record.saveError}</span><button disabled={busy} onClick={() => run(() => c.retrySave())}>重试保存</button></div>}
-            <div ref={output} className="dqt-output" tabIndex={0} aria-label="译文内容" onScroll={() => { const el = output.current!; sticky.current = el.scrollHeight - el.scrollTop - el.clientHeight < 70; }}>
-              {record?.result ? <div className="dqt-translated">{record.result}</div> : <div className="dqt-empty"><Languages /><h3>{record?.status === 'running' ? '译文即将显示在这里' : '让表达跨越语言'}</h3><p>{record?.status === 'running' ? '收到模型输出后逐步显示。你可以切换页面，稍后回来查看。' : record ? '这次翻译还没有产生译文。可使用原文重新翻译。' : '在左侧输入原文，选择模型后开始翻译。'}</p></div>}
+    <LayerContext.Provider value={root}>
+      {railShown && <HistoryRail c={c} history={s.history} loaded={s.loaded} loadingMore={s.loadingMore} viewingId={viewing?.id} currentId={s.current?.id}
+        currentStatus={s.current?.status} running={running} busy={busy} overlay={!wide} onPick={pick} onCollapse={toggleRail} onDelete={askDelete} />}
+      {railShown && !wide && <button type="button" className="dqt-scrim" aria-label="关闭历史记录" onClick={() => setRailOverlay(false)} />}
+      <main className="dqt-main">
+        <TopBar c={c} viewing={viewing} current={s.current} railShown={railShown} running={running} busy={busy} loaded={s.loaded}
+          onToggleRail={toggleRail} onSettings={openSettings} onDelete={askDelete} onPrompt={showPrompt} />
+        {!s.loaded ? <div className="dqt-boot" role="status">{s.error ? <><CircleAlert /><p>{s.error}</p>
+          <button type="button" className="dqt-button dqt-button-secondary" onClick={() => void c.reload().catch(c.report)}>重试</button></>
+          : <><LoaderCircle className="dqt-spin" /><p>正在打开快捷翻译…</p></>}</div> : <>
+          {s.error && <div className="dqt-banner" role="alert"><CircleAlert /><span>{s.error}</span>
+            {running && !s.connected && <button type="button" className="dqt-button dqt-button-secondary" disabled={busy} onClick={() => void c.reload().catch(c.report)}>重新连接</button>}
+            <button type="button" className="dqt-icon-button" aria-label="关闭错误提示" onClick={c.dismissError}><X /></button></div>}
+          <div className="dqt-canvas">
+            <div className="dqt-card" data-mode={viewing ? 'history' : undefined}>
+              <SourcePane c={c} text={viewing ? viewing.source : s.draft} viewing={viewing} running={running} busy={busy} canStart={canStart}
+                startLabel={s.current && !modified ? '重新翻译' : '翻译'} models={s.models} provider={s.settings?.provider ?? ''} model={s.settings?.model ?? ''}
+                modelWarnings={s.modelWarnings} refreshingModels={s.refreshingModels} />
+              <ResultPane c={c} record={viewing ?? s.current} historic={!!viewing} modified={modified} busy={busy} />
             </div>
-            <footer className="dqt-result-footer"><span>{record?.status === 'running' ? '切换页面后继续翻译' : record && !record.saveError ? '已保存到本地历史记录' : '译文自动保存到本地'}</span><span>{record?.result.length.toLocaleString() ?? 0} 字符</span></footer>
-          </section>
-        </div>
-        <footer className="dqt-storage"><FolderOpen /><span title={s.settings?.directory}>历史记录：{s.settings?.directory}</span><button disabled={busy || running} onClick={() => openModal('directory')}>更改位置</button></footer>
-      </>}
-    </main>
-    {modal && <Dialog title={modal === 'settings' ? '翻译设置' : modal === 'directory' ? '历史记录保存位置' : modal === 'prompt' ? '本次翻译使用的提示词' : modal === 'delete' ? '删除这条记录？' : '清空所有历史记录？'} busy={busy} onClose={() => setModal(null)}>
-      {modal === 'settings' && <>
-        <p className="dqt-muted">当前使用：{s.settings?.promptMode === 'custom' ? '自定义提示词' : '默认提示词'}。修改并保存会写入独立的 custom.md，默认文件保持不变。每次翻译独立发送，不携带上一条译文。</p>
-        {s.settings?.promptError && <p className="dqt-dialog-error" role="alert">{s.settings.promptError}</p>}
-        <label className="dqt-field">翻译提示词<textarea autoFocus aria-label="翻译提示词" disabled={busy} value={prompt} onChange={e => setPrompt(e.target.value)} maxLength={MAX_PROMPT} rows={8} /></label>
-        <div className="dqt-form-note"><span>{prompt.length.toLocaleString()} / {MAX_PROMPT.toLocaleString()}</span><button onClick={() => run(async () => { const saved = await c.switchPrompt('default'); setPrompt(saved.prompt); })} disabled={busy}>恢复默认提示词</button></div>
-        <div className="dqt-prompt-files">
-          <span>默认提示词文件（随插件提供）</span><code>{s.settings?.defaultPromptFile}</code>
-          <span>自定义提示词文件{s.settings?.hasCustomPrompt ? '' : '（首次保存时创建）'}</span><code>{s.settings?.customPromptFile}</code>
-          <div><button disabled={busy} onClick={() => run(() => c.openPrompts())}><FolderOpen />打开自定义提示词目录</button>{s.settings?.hasCustomPrompt && <button disabled={busy} onClick={() => run(async () => { const saved = await c.switchPrompt('custom'); setPrompt(saved.prompt); })}>使用已保存的自定义</button>}</div>
-          <span>恢复默认后立即生效，自定义文件仍保留。修改仅用于后续翻译。</span>
-        </div>
-        <div className="dqt-storage-setting"><span>历史记录保存在</span><code>{s.settings?.directory}</code><button onClick={() => openModal('directory')} disabled={busy || running || prompt !== s.settings?.prompt}>更改位置并迁移</button>{prompt !== s.settings?.prompt && <span>请先保存提示词，再更改历史记录位置。</span>}</div>
-        <footer><button disabled={busy} onClick={() => setModal(null)}>关闭</button><button className="dqt-primary" disabled={busy || !prompt.trim() || prompt === s.settings?.prompt} onClick={() => void submitDialog(() => c.saveSettings({ prompt }))}>{busy ? '保存中…' : '保存自定义提示词'}</button></footer>
-      </>}
-      {modal === 'directory' && <>
-        <p className="dqt-muted">迁移全部翻译历史，完成后自动使用新位置。旧目录为空时删除；其他文件或子文件夹会保留。</p>
-        <label className="dqt-field">当前目录<code>{s.settings?.directory}</code></label>
-        <label className="dqt-field">新目录<input autoFocus aria-label="新历史记录目录" value={directory} onChange={e => setDirectory(e.target.value)} disabled={busy} placeholder="例如 D:\Documents\DSH Translations" /></label>
-        {window.__DSH_DIRECTORY_PICKER__ && <button disabled={busy} onClick={() => void chooseDirectory()}><FolderOpen />选择文件夹</button>}
-        <p className="dqt-muted">建议使用专门的空文件夹。同名记录会阻止迁移，不会覆盖。</p>
-        <footer><button disabled={busy} onClick={() => setModal(null)}>取消</button><button className="dqt-primary" disabled={busy || running || !directory.trim() || directory === s.settings?.directory} onClick={() => void submitDialog(() => c.migrate(directory))}>{busy ? '迁移中…' : '迁移并使用'}</button></footer>
-      </>}
-      {modal === 'prompt' && <><p className="dqt-muted">{record?.modelName} · {record && date(record.createdAt)}</p><pre className="dqt-prompt-snapshot">{record?.prompt}</pre><footer><button onClick={() => setModal(null)}>关闭</button></footer></>}
-      {(modal === 'delete' || modal === 'clear') && <>
-        <p>{modal === 'delete' ? '将删除这条记录的原文、译文及翻译信息。此操作无法撤销。' : `将删除全部 ${s.history.total} 条翻译记录。提示词、模型和保存位置设置会保留。此操作无法撤销。`}</p>
-        <footer><button autoFocus disabled={busy} onClick={() => setModal(null)}>取消</button><button className="dqt-danger-button" disabled={busy || (modal === 'clear' && running)} onClick={() => void submitDialog(() => modal === 'delete' ? c.remove(record!.id) : c.clear())}>{busy ? '删除中…' : modal === 'delete' ? '确认删除' : '确认清空'}</button></footer>
-      </>}
-      {localError && <p className="dqt-dialog-error" role="alert">{localError}</p>}
-    </Dialog>}
+          </div>
+        </>}
+      </main>
+      <Toast message={sheet ? '' : s.notice} onDismiss={c.dismissNotice} />
+      {sheet && s.settings && <SettingsSheet c={c} settings={s.settings} defaultPrompt={s.defaultPrompt} total={s.history.total} running={running} busy={busy}
+        draft={promptDraft} onDraft={setPromptDraft} onClose={() => setSheet(false)} onMigrate={() => setModal({ kind: 'migrate' })} onClear={() => setModal({ kind: 'clear' })} />}
+      {modal?.kind === 'migrate' && s.settings && <MigrateDialog c={c} current={s.settings.directory} onClose={closeModal} onDone={() => { setModal(null); setSheet(false); }} />}
+      {modal?.kind === 'clear' && <ConfirmDialog title="清空全部历史记录？" confirm="确认清空" onClose={closeModal}
+        body={`将删除全部 ${s.history.total.toLocaleString()} 条翻译记录。提示词、模型和保存位置设置会保留。此操作无法撤销。`}
+        onConfirm={async () => { await c.perform(() => c.clear(), true); setSheet(false); }} />}
+      {modal?.kind === 'delete' && <ConfirmDialog title="删除这条记录？" confirm="确认删除" onClose={closeModal}
+        body="将删除这条记录的原文、译文和翻译信息。此操作无法撤销。" onConfirm={() => c.perform(() => c.remove(modal.id), true)} />}
+      {modal?.kind === 'prompt' && <PromptDialog record={modal.record} onClose={closeModal} />}
+    </LayerContext.Provider>
   </div>;
 }
