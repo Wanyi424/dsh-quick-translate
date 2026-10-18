@@ -1,6 +1,6 @@
 {
   "name": "dsh-quick-translate",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "快捷翻译：DSH 模型、中英文提示词翻译、流式输出与本地历史记录。",
   "type": "module",
   "license": "MIT",
@@ -9,7 +9,8 @@
   "homepage": "https://github.com/Wanyi424/dsh-quick-translate#readme",
   "bugs": { "url": "https://github.com/Wanyi424/dsh-quick-translate/issues" },
   "engines": {
-    "node": ">=22"
+    "node": ">=22",
+    "dsh": "^0.2.0-rc.2"
   },
   "icon": "./icon.svg",
   "exports": {
@@ -47,14 +48,6 @@
         "@deepseek-ai/dsh-client-locale",
         "@deepseek-ai/dsh-client-connection"
       ]
-    }
-  },
-  "peerDependencies": {
-    "@deepseek-ai/dsh-client-connection": "0.2.0-rc.2"
-  },
-  "peerDependenciesMeta": {
-    "@deepseek-ai/dsh-client-connection": {
-      "optional": true
     }
   },
   "devDependencies": {

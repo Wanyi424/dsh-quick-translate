@@ -4,12 +4,12 @@
 
 ## 安装
 
-适配当前检查的 Windows 桌面版 DeepSeek Harness `0.2.0-rc.2`，与 [Markdown 笔记插件](https://github.com/Wanyi424/dsh-markdown-notes)独立。克隆本仓库后，按下方「开发与验证」构建安装包。
+通过 `engines.dsh` 声明兼容 Windows 桌面版 DeepSeek Harness 0.2 系列（`^0.2.0-rc.2`），在 `0.2.0-rc.2` 上检查过，与 [Markdown 笔记插件](https://github.com/Wanyi424/dsh-markdown-notes)独立。克隆本仓库后，按下方「开发与验证」构建安装包。
 
 在 DSH 左侧「插件」页面选择「添加插件」，添加压缩包：
 
 ```text
-dist/dsh-quick-translate-0.2.4.tgz
+dist/dsh-quick-translate-0.2.5.tgz
 ```
 
 按安装页面提示启用或重启后，左侧出现「快捷翻译」。无需修改 DSH 的配置文件，也不需要另填 API Key。新插件不会修改笔记插件或已有笔记。此项目没有自动安装到用户的 DSH profile。
