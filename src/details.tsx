@@ -22,7 +22,7 @@ const join = (...parts: (string | false | undefined)[]) => parts.filter(Boolean)
 function report(r: Translation) {
   const u = r.usage, phases = phasesOf(r);
   return [
-    '快捷翻译 · 翻译详情',
+    '翻译 · 翻译详情',
     `记录编号：${r.id}`,
     `开始时间：${r.createdAt}`,
     `模型：${r.modelName}（${r.provider} / ${r.model}）`,

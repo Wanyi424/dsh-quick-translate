@@ -1,4 +1,4 @@
-# 快捷翻译 · DSH 插件
+# 翻译 · DSH 插件
 
 独立的中英文翻译页面。使用 DSH 已配置的模型，翻译行为完全由提示词决定；没有语言检测服务、语言选择参数、Agent、工具调用或会话交互。
 
@@ -9,10 +9,10 @@
 在 DSH 左侧「插件」页面选择「添加插件」，添加压缩包：
 
 ```text
-dist/dsh-quick-translate-0.2.5.tgz
+dist/dsh-translate-0.2.6.tgz
 ```
 
-按安装页面提示启用或重启后，左侧出现「快捷翻译」。无需修改 DSH 的配置文件，也不需要另填 API Key。新插件不会修改笔记插件或已有笔记。此项目没有自动安装到用户的 DSH profile。
+按安装页面提示启用或重启后，左侧出现「翻译」。无需修改 DSH 的配置文件，也不需要另填 API Key。新插件不会修改笔记插件或已有笔记。此项目没有自动安装到用户的 DSH profile。
 
 ## 使用
 
@@ -37,7 +37,7 @@ dist/dsh-quick-translate-0.2.5.tgz
 在「设置 → 提示词」中切换「默认 / 自定义」：默认提示词只读显示；选择「自定义」后编辑并点击「保存」，会自动生成或更新独立的 Markdown 文件：
 
 ```text
-%USERPROFILE%\.dsh\plugin-data\dsh-quick-translate\prompts\custom.md
+%USERPROFILE%\.dsh\plugin-data\dsh-translate\prompts\custom.md
 ```
 
 切回「默认」立即生效，不改写也不删除 `custom.md`；再次选择「自定义」即恢复已保存的版本。未保存的修改在关闭设置面板后仍会保留，直到你保存或放弃。修改只用于之后发起的翻译，正在运行的任务和历史记录继续使用各自的提示词快照。改变模型不会改写提示词文件。
@@ -53,10 +53,10 @@ dist/dsh-quick-translate-0.2.5.tgz
 所有工作区共用一套翻译历史，默认在：
 
 ```text
-%USERPROFILE%\.dsh\plugin-data\dsh-quick-translate\history
+%USERPROFILE%\.dsh\plugin-data\dsh-translate\history
 ```
 
-代码使用 DSH 官方 `@deepseek-ai/dsh-home-paths` 路径库解析根目录，优先跟随 `DSH_HOME`，未设置时使用当前用户的 `.dsh`。`plugin-data/dsh-quick-translate` 是本插件在 DSH 数据根目录中使用的独立子目录，文件仍保持普通 JSON / Markdown 格式。实际路径显示在「设置 → 历史记录」中，点击「打开文件夹」即可在资源管理器中打开。
+代码使用 DSH 官方 `@deepseek-ai/dsh-home-paths` 路径库解析根目录，优先跟随 `DSH_HOME`，未设置时使用当前用户的 `.dsh`。`plugin-data/dsh-translate` 是本插件在 DSH 数据根目录中使用的独立子目录，若存在旧版本 `plugin-data/dsh-quick-translate` 会自动无缝平滑迁移；文件仍保持普通 JSON / Markdown 格式。实际路径显示在「设置 → 历史记录」中，点击「打开文件夹」即可在资源管理器中打开。
 
 从 0.1.2 起，历史记录和自定义提示词的目录打开统一使用 DSH 原生 `open-in-app/open` 接口。插件 Host 提供实际目录，桌面宿主负责启动资源管理器；不再隐藏启动 Explorer 并仅凭进程创建判定成功。迁移后打开新目录，原生接口不可用或启动失败会显示错误。升级后请完整退出并重新启动 DSH，使前端和 Host 同时更新。
 
@@ -73,7 +73,7 @@ dist/dsh-quick-translate-0.2.5.tgz
 模型、提示词及目录设置单独保存在：
 
 ```text
-%USERPROFILE%\.dsh\plugin-data\dsh-quick-translate\settings.json
+%USERPROFILE%\.dsh\plugin-data\dsh-translate\settings.json
 ```
 
 迁移只移动历史文件，设置与自定义提示词不放在会被删除的旧历史目录里。「设置 → 历史记录 → 清空全部…」确认后清空全部记录，不会清空设置或自定义提示词。

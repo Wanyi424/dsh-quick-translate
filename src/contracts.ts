@@ -1,4 +1,4 @@
-export const API_PATH = '/api/quick-translate';
+export const API_PATH = '/api/translate';
 export type DirectoryTarget = 'history' | 'prompts';
 export const MAX_SOURCE = 60_000;
 export const MAX_PROMPT = 16_000;

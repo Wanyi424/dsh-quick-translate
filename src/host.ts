@@ -3,7 +3,7 @@ import { dirname } from 'node:path';
 import { mkdir } from 'node:fs/promises';
 import { Runtime, type Llm } from './runtime';
 import { Store } from './storage';
-export const name = 'quick-translate';
+export const name = 'translate';
 export const inject = ['connection', 'llm'];
 export interface HostContext {
   llm: Llm;
@@ -55,5 +55,5 @@ export function createHandler(runtime: Runtime) {
 export async function apply(ctx: HostContext, _config = {}, store = new Store()) {
   await store.init(); const runtime = new Runtime(store, ctx.llm);
   ctx.connection.fetch.register({ path: API_PATH, methods: ['POST'], requestBody: 'buffered', fetch: createHandler(runtime) });
-  ctx.effect(() => () => runtime.dispose(), 'quick-translate: lifetime');
+  ctx.effect(() => () => runtime.dispose(), 'translate: lifetime');
 }

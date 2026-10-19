@@ -1,4 +1,4 @@
-import { constants } from 'node:fs';
+import { constants, existsSync } from 'node:fs';
 import { copyFile, lstat, mkdir, readFile, readdir, realpath, rename, rmdir, unlink, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, join, parse, relative, resolve, sep } from 'node:path';
 import { homedir } from 'node:os';
@@ -31,8 +31,14 @@ export class Store {
   async init() {
     let saved: Partial<Pick<Settings, 'directory' | 'provider' | 'model' | 'promptMode'>> = {};
     try { saved = JSON.parse(await readFile(this.settingsFile, 'utf8')); } catch (error) { if (!missing(error)) throw error; }
-    const directory = saved.directory ?? this.defaultDirectory;
+    let directory = saved.directory ?? this.defaultDirectory;
     if (typeof directory !== 'string' || !isAbsolute(directory)) throw new Error('历史记录目录配置无效。');
+    if (directory.includes('dsh-quick-translate') && !existsSync(directory)) {
+      const migrated = directory.replace('dsh-quick-translate', 'dsh-translate');
+      if (existsSync(migrated) || directory === join(dirname(this.settingsFile).replace('dsh-translate', 'dsh-quick-translate'), 'history')) {
+        directory = migrated;
+      }
+    }
     const customPromptFile = join(dirname(this.settingsFile), 'prompts', 'custom.md');
     const mode: PromptMode = saved.promptMode === 'custom' ? 'custom' : 'default';
     this.config = { directory: resolve(directory), prompt: DEFAULT_PROMPT, provider: typeof saved.provider === 'string' ? saved.provider : '', model: typeof saved.model === 'string' ? saved.model : '', promptMode: mode, defaultPromptFile: DEFAULT_PROMPT_FILE, customPromptFile, hasCustomPrompt: false };

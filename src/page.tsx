@@ -11,8 +11,13 @@ import css from './styles.css';
 
 type Layout = 'wide' | 'medium' | 'narrow';
 type Modal = { kind: 'migrate' } | { kind: 'clear' } | { kind: 'delete'; id: string } | { kind: 'details'; record: Translation } | null;
-const RAIL_KEY = 'dsh-quick-translate:history-rail';
-function readRail() { try { return localStorage.getItem(RAIL_KEY) !== 'hidden'; } catch { return true; } }
+const RAIL_KEY = 'dsh-translate:history-rail';
+function readRail() {
+  try {
+    const val = localStorage.getItem(RAIL_KEY) ?? localStorage.getItem('dsh-quick-translate:history-rail');
+    return val !== 'hidden';
+  } catch { return true; }
+}
 function saveRail(shown: boolean) { try { localStorage.setItem(RAIL_KEY, shown ? 'shown' : 'hidden'); } catch { /* Preference only. */ } }
 
 /**
@@ -117,7 +122,7 @@ const TopBar = memo(function TopBar({ c, viewing, current, railShown, total, run
       <button type="button" className="dqt-button dqt-back" title="返回当前翻译（Esc）" onClick={() => c.showCurrent()}><ArrowLeft /><span>返回</span></button>
       <div className="dqt-bar-title"><strong>{fullTime(viewing.createdAt)}</strong><span>{viewing.modelName}</span></div>
       {running && <button type="button" className="dqt-live" onClick={() => c.showCurrent()}><i className="dqt-dot" />翻译进行中</button>}
-    </> : <div className="dqt-bar-title"><strong>快捷翻译</strong></div>}
+    </> : <div className="dqt-bar-title"><strong>翻译</strong></div>}
     {record && <button type="button" className="dqt-icon-button" aria-label="更多操作" title="更多操作" aria-haspopup="menu" aria-expanded={!!menu}
       onClick={event => setMenu(menu ? null : anchorFrom(event.currentTarget))}><MoreHorizontal /></button>}
     {!viewing && <button type="button" className="dqt-button" disabled={!loaded} onClick={onSettings}><Settings2 /><span>设置</span></button>}
@@ -165,7 +170,7 @@ export function Page({ controller: c }: { controller: Controller }) {
           onToggleRail={toggleRail} onSettings={openSettings} onDelete={askDelete} onDetails={showDetails} />
         {!s.loaded ? <div className="dqt-boot" role="status">{s.error ? <><CircleAlert /><p>{s.error}</p>
           <button type="button" className="dqt-button dqt-button-secondary" onClick={() => void c.reload().catch(c.report)}>重试</button></>
-          : <><LoaderCircle className="dqt-spin" /><p>正在打开快捷翻译…</p></>}</div> : <>
+          : <><LoaderCircle className="dqt-spin" /><p>正在打开翻译…</p></>}</div> : <>
           {s.error && <div className="dqt-banner" role="alert"><CircleAlert /><span>{s.error}</span>
             {running && !s.connected && <button type="button" className="dqt-button dqt-button-secondary" disabled={busy} onClick={() => void c.reload().catch(c.report)}>重新连接</button>}
             <button type="button" className="dqt-icon-button" aria-label="关闭错误提示" onClick={c.dismissError}><X /></button></div>}

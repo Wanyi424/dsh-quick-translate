@@ -30,7 +30,7 @@ const factories = new Map<string, Factory>(); const cache = new Map<string, unkn
 const pending = new Map<string, Promise<unknown>>();
 const localRequire = Object.assign((id: string) => { if (!(id in modules)) throw new Error(`Unresolved shared module: ${id}`); return modules[id]; }, {
   async(path: string): Promise<unknown> {
-    const file = path.slice(2), id = `dsh-quick-translate/${file}`;
+    const file = path.slice(2), id = `dsh-translate/${file}`;
     if (cache.has(id)) return Promise.resolve(cache.get(id));
     if (!pending.has(id)) pending.set(id, new Promise<void>((resolve, reject) => {
       const script = document.createElement('script'); script.src = '/' + file;
@@ -42,6 +42,6 @@ const localRequire = Object.assign((id: string) => { if (!(id in modules)) throw
 (window as unknown as { __ModuleLoader__: unknown }).__ModuleLoader__ = {
   load(entry: { id: string; factory: Factory }) {
     factories.set(entry.id, entry.factory);
-    if (entry.id === 'dsh-quick-translate') (entry.factory(localRequire) as { apply(ctx: unknown): void }).apply(ctx);
+    if (entry.id === 'dsh-translate') (entry.factory(localRequire) as { apply(ctx: unknown): void }).apply(ctx);
   },
 };

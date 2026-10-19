@@ -15,11 +15,11 @@ function LazyPage({ controller }: { controller: Controller }) {
   }, [attempt]);
   if (Page) return <Page controller={controller} />;
   // A local chunk usually arrives within a frame or two; only show the hint when it does not.
-  return <div style={hint} role="status">{failed ? <>翻译页面加载失败<button onClick={() => { setFailed(false); setAttempt(n => n + 1); }}>重试</button></> : slow ? '正在打开快捷翻译…' : null}</div>;
+  return <div style={hint} role="status">{failed ? <>翻译页面加载失败<button onClick={() => { setFailed(false); setAttempt(n => n + 1); }}>重试</button></> : slow ? '正在打开翻译…' : null}</div>;
 }
 export function apply(ctx: ClientContext) {
   const controller = new Controller();
-  ctx.effect(() => ctx.locale.register('quickTranslate', { zh: { title: '快捷翻译' }, en: { title: 'Translate' } }), 'quick-translate: locale');
-  ctx.slots.inject('main', () => ctx.slots.register({ name: 'main', key: 'quick-translate', locale: 'quickTranslate' }, () => <LazyPage controller={controller} />));
-  ctx.slots.inject('sidebar.panellist', () => ctx.slots.register({ name: 'sidebar.panellist', id: 'quick-translate', order: 16, label: () => ctx.locale.bind('quickTranslate')('title'), locale: 'quickTranslate' }, () => <Languages size={20} strokeWidth={1.6} />));
+  ctx.effect(() => ctx.locale.register('translate', { zh: { title: '翻译' }, en: { title: 'Translate' } }), 'translate: locale');
+  ctx.slots.inject('main', () => ctx.slots.register({ name: 'main', key: 'translate', locale: 'translate' }, () => <LazyPage controller={controller} />));
+  ctx.slots.inject('sidebar.panellist', () => ctx.slots.register({ name: 'sidebar.panellist', id: 'translate', order: 16, label: () => ctx.locale.bind('translate')('title'), locale: 'translate' }, () => <Languages size={20} strokeWidth={1.6} />));
 }

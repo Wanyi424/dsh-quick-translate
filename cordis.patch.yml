@@ -1,4 +1,4 @@
 - insert:
-    - id: quick-translate
-      name: dsh-quick-translate
+    - id: translate
+      name: dsh-translate
       config: {}

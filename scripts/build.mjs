@@ -10,7 +10,7 @@ const host = await build({ entryPoints: ['src/host.ts'], outfile: 'lib/host.js',
 const clients = await Promise.all([['src/client.tsx', 'client.js'], ['src/page.tsx', 'client.page.js']].map(([entry, file]) => build({
   entryPoints: [entry], outfile: `lib/${file}`, bundle: true, platform: 'browser', target: 'chrome130', format: 'cjs', jsx: 'transform', minify: true, metafile: true,
   external: ['react', 'react/jsx-runtime', 'react-dom'], plugins: [cssText],
-  banner: { js: `window.__ModuleLoader__.load({ id: ${JSON.stringify(file === 'client.js' ? 'dsh-quick-translate' : 'dsh-quick-translate/' + file)}, factory(require) { const module = { exports: {} }; const exports = module.exports;` },
+  banner: { js: `window.__ModuleLoader__.load({ id: ${JSON.stringify(file === 'client.js' ? 'dsh-translate' : 'dsh-translate/' + file)}, factory(require) { const module = { exports: {} }; const exports = module.exports;` },
   footer: { js: 'return module.exports; } });' }, define: { 'process.env.NODE_ENV': '"production"' },
 })));
 const roots = new Set();

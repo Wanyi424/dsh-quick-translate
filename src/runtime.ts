@@ -83,7 +83,7 @@ export class Runtime {
     const timeout = setTimeout(() => abort.abort(new Error('翻译已超过 10 分钟，已停止并保留现有内容。')), this.timeoutMs);
     const since = () => Date.now() - Date.parse(r.createdAt);
     try {
-      const stream = this.llm.stream({ provider: r.provider, model: r.model, messages: [{ id: randomUUID(), role: 'user', content: [{ type: 'text', text: r.source }], source: { kind: 'dsh-quick-translate' } }], system: r.prompt, purpose: 'quick-translate', signal: abort.signal });
+      const stream = this.llm.stream({ provider: r.provider, model: r.model, messages: [{ id: randomUUID(), role: 'user', content: [{ type: 'text', text: r.source }], source: { kind: 'dsh-translate' } }], system: r.prompt, purpose: 'translate', signal: abort.signal });
       iterator = stream[Symbol.asyncIterator]();
       while (true) {
         const next = await nextWithSignal(iterator, abort.signal);

@@ -11,7 +11,7 @@ test('both directory buttons use the DSH native launcher and the host-provided p
     };
     await openDirectory(target, fetcher);
     assert.deepEqual(calls, [
-      { url: 'api/quick-translate', method: 'POST', body: { action: 'directory', target } },
+      { url: 'api/translate', method: 'POST', body: { action: 'directory', target } },
       { url: 'open-in-app/open', method: 'POST', body: { app: 'explorer', path: directory } },
     ]);
   }
@@ -31,7 +31,7 @@ test('native launch errors and unavailable routes are surfaced instead of report
     [new Response('Not found', { status: 404 }), /系统目录打开功能不可用/],
     [new Response('Bad gateway', { status: 502 }), /HTTP 502/],
   ] as const) {
-    const fetcher: typeof fetch = async url => url === 'api/quick-translate'
+    const fetcher: typeof fetch = async url => url === 'api/translate'
       ? Response.json({ data: { directory: 'D:\\Translations' } }) : response;
     await assert.rejects(openDirectory('history', fetcher), message);
   }

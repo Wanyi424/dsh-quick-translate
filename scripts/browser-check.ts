@@ -39,7 +39,7 @@ try {
   };
   await apply(ctx, {}, f.store);
   const theme = JSON.parse(await readFile('tests/themes.json', 'utf8'));
-  const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>:root{${theme.light}}html[data-theme=dark]{${theme.dark}}*{box-sizing:border-box}body{margin:0;height:100vh;overflow:hidden;font-family:'Segoe UI','Microsoft YaHei',sans-serif;color:var(--dsw-alias-label-primary);background:var(--dsw-alias-bg-base)}.fixture-shell{height:100%;display:grid;grid-template-columns:240px minmax(0,1fr)}.fixture-nav{background:var(--dsw-alias-bg-layer-1);border-right:1px solid var(--dsw-alias-border-l2);padding:28px 18px}.fixture-nav h2{font-size:22px;margin:0 0 34px}.fixture-nav div,.fixture-nav button{font-size:14px;padding:12px;border-radius:8px;margin-bottom:6px;display:block;width:100%;text-align:left;background:transparent;border:0;color:inherit;cursor:pointer}.fixture-nav .active{background:var(--dsw-alias-interactive-bg-active)}.fixture-label{font-size:11px;color:var(--dsw-alias-label-tertiary);margin-top:24px}#plugin{min-width:0;height:100%;overflow:hidden}@media(max-width:900px){.fixture-shell{grid-template-columns:minmax(0,1fr)}.fixture-nav{display:none}}</style></head><body><div class="fixture-shell"><aside class="fixture-nav"><h2>deepseek HARNESS</h2><button id="close-translate">工作台</button><div>插件</div><div>笔记</div><button id="open-translate" class="active">快捷翻译</button><p class="fixture-label">隔离验证 · 非 DSH 实际窗口</p></aside><div id="plugin"></div></div><script src="/entry.js"></script><script src="/plugin.js"></script></body></html>`;
+  const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>:root{${theme.light}}html[data-theme=dark]{${theme.dark}}*{box-sizing:border-box}body{margin:0;height:100vh;overflow:hidden;font-family:'Segoe UI','Microsoft YaHei',sans-serif;color:var(--dsw-alias-label-primary);background:var(--dsw-alias-bg-base)}.fixture-shell{height:100%;display:grid;grid-template-columns:240px minmax(0,1fr)}.fixture-nav{background:var(--dsw-alias-bg-layer-1);border-right:1px solid var(--dsw-alias-border-l2);padding:28px 18px}.fixture-nav h2{font-size:22px;margin:0 0 34px}.fixture-nav div,.fixture-nav button{font-size:14px;padding:12px;border-radius:8px;margin-bottom:6px;display:block;width:100%;text-align:left;background:transparent;border:0;color:inherit;cursor:pointer}.fixture-nav .active{background:var(--dsw-alias-interactive-bg-active)}.fixture-label{font-size:11px;color:var(--dsw-alias-label-tertiary);margin-top:24px}#plugin{min-width:0;height:100%;overflow:hidden}@media(max-width:900px){.fixture-shell{grid-template-columns:minmax(0,1fr)}.fixture-nav{display:none}}</style></head><body><div class="fixture-shell"><aside class="fixture-nav"><h2>deepseek HARNESS</h2><button id="close-translate">工作台</button><div>插件</div><div>笔记</div><button id="open-translate" class="active">翻译</button><p class="fixture-label">隔离验证 · 非 DSH 实际窗口</p></aside><div id="plugin"></div></div><script src="/entry.js"></script><script src="/plugin.js"></script></body></html>`;
   const files: Record<string, string> = { '/entry.js': join(f.root, 'entry.js'), '/plugin.js': 'lib/client.js', '/client.page.js': 'lib/client.page.js' };
   browser = await chromium.launch({ headless: true });
   const page = lastPage = await browser.newPage({ viewport: { width: 1584, height: 992 } });
@@ -63,9 +63,9 @@ try {
       if (!failOpen) opened.push(request.path);
       return { status: failOpen ? 500 : 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify(failOpen ? { message: '模拟原生启动失败' } : { ok: true }) };
     }
-    assert.equal(path, 'api/quick-translate');
+    assert.equal(path, 'api/translate');
     const abort = new AbortController();
-    const response = await api(new Request('http://localhost/api/quick-translate', { method: 'POST', body, signal: abort.signal }));
+    const response = await api(new Request('http://localhost/api/translate', { method: 'POST', body, signal: abort.signal }));
     const id = ++nextStream; streams.set(id, { reader: response.body!.getReader(), abort });
     return { status: response.status, headers: Object.fromEntries(response.headers.entries()), stream: id };
   });
@@ -143,7 +143,7 @@ try {
 
   // Streaming, background continuation and reconnection.
   await source.fill('清晰的表达，从理解开始。\n\n好的翻译不仅保留原文的含义，也保留它的语气与节奏。语言要自然，结构要清楚，细节要准确。\n\n每一个词，都值得认真选择。');
-  await page.getByRole('button', { name: '翻译', exact: true }).click();
+  await page.locator('.dqt-card').getByRole('button', { name: '翻译', exact: true }).click();
   await page.locator('.dqt-pending').waitFor();
   await shot('connecting');
   await page.locator('.dqt-text[data-live]').waitFor(); assert.ok((await page.locator('.dqt-text').innerText()).length < 245);
@@ -167,7 +167,7 @@ try {
   assert.equal(await page.locator('.dqt-history-button .dqt-count').innerText(), '1');
   await page.locator('.dqt-saved').waitFor(); await shot('rail-collapsed');
   await page.getByRole('button', { name: '已保存到历史' }).click(); await page.locator('.dqt-rail').waitFor();
-  assert.equal(await page.evaluate(() => localStorage.getItem('dsh-quick-translate:history-rail')), 'shown');
+  assert.equal(await page.evaluate(() => localStorage.getItem('dsh-translate:history-rail')), 'shown');
   assert.equal(await page.locator('.dqt-saved').count(), 0);
   // Run details: tokens, where the time went, the outcome and the prompt snapshot.
   await page.locator('.dqt-meta').click(); await page.locator('dialog.dqt-details').waitFor();
@@ -181,7 +181,7 @@ try {
   // Editing the source marks the shown translation as stale instead of replacing it.
   await source.press('End'); await source.type('补充');
   await page.locator('.dqt-result[data-stale]').waitFor();
-  await page.getByRole('button', { name: '翻译', exact: true }).waitFor();
+  await page.locator('.dqt-card').getByRole('button', { name: '翻译', exact: true }).waitFor();
   await shot('stale');
 
   // Clear starts a new translation; stopping keeps partial output.

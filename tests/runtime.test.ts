@@ -21,7 +21,7 @@ test('DSH model route and exact prompt/source are used; reasoning is excluded, f
   try {
     await configured(f.store); const r = await runtime.start('Hello!'); await until(() => !runtime.running);
     assert.equal(runtime.active?.result, '你好！'); assert.equal(runtime.active?.status, 'completed');
-    assert.equal(options!.provider, 'fixture'); assert.equal(options!.purpose, 'quick-translate');
+    assert.equal(options!.provider, 'fixture'); assert.equal(options!.purpose, 'translate');
     assert.equal(options!.system, f.store.settings.prompt); assert.deepEqual(options!.messages[0].content, [{ type: 'text', text: 'Hello!' }]);
     assert.equal((await f.store.read(r.id)).prompt, options!.system); assert.ok(!('tools' in options!));
   } finally { await runtime.dispose(); await f.cleanup(); }
@@ -104,7 +104,7 @@ test('persistence failure blocks dispatch; final save failure stays in memory an
 test('API validates models/input, confirms clear, resolves only managed directories including after migration', async () => {
   const f = await fixture(); const runtime = new Runtime(f.store, fake(async function* () { yield { type: 'text-delta', text: '你好' }; yield { type: 'finish', reason: { kind: 'stop' } }; }));
   const handle = createHandler(runtime);
-  const req = (body: unknown) => handle(new Request('http://localhost/api/quick-translate', { method: 'POST', body: JSON.stringify(body) }));
+  const req = (body: unknown) => handle(new Request('http://localhost/api/translate', { method: 'POST', body: JSON.stringify(body) }));
   try {
     await assert.rejects(runtime.start('Hello'), /选择/); await configured(f.store);
     await assert.rejects(runtime.start('a'.repeat(MAX_SOURCE + 1)), /60,000/);

@@ -37,11 +37,15 @@
   --dqt-ease-enter: cubic-bezier(0, 0, .58, 1);
   --dqt-ease-exit: cubic-bezier(.4, 0, 1, 1);
   --dqt-rail: 256px;
+  /* Room above the page for window controls. Only macOS draws them over the page; DSH's Windows frame already starts below its
+   * title bar, so the host's own pages add the clearance under darwin only, and so does this page. */
+  --dqt-frame-top: 0px;
   position: relative; display: grid; grid-template-columns: var(--dqt-rail) minmax(0, 1fr);
   width: 100%; height: 100%; min-height: 0; overflow: hidden;
   color: var(--dqt-fg); background: var(--dqt-bg); font: 13px/1.5 var(--dqt-font); color-scheme: light dark;
   -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
 }
+[data-platform='darwin'] .dqt-root { --dqt-frame-top: var(--dsh-frame-top-clearance, 0px); }
 .dqt-root[data-rail='hidden'], .dqt-root:not([data-layout='wide']) { grid-template-columns: 0px minmax(0, 1fr); }
 .dqt-root[data-animate] { transition: grid-template-columns .32s var(--dqt-ease-standard); }
 .dqt-root *, .dqt-root *::before, .dqt-root *::after { box-sizing: border-box; }
@@ -84,7 +88,7 @@
  */
 .dqt-rail-slot { grid-area: 1 / 1; display: flex; justify-content: flex-end; min-width: 0; min-height: 0; overflow: hidden; }
 .dqt-main { grid-area: 1 / 2; }
-.dqt-rail { flex: none; width: var(--dqt-rail); display: flex; flex-direction: column; min-height: 0; padding-top: var(--dsh-frame-top-clearance, 0px); background: var(--dqt-bg-2); border-right: 1px solid var(--dqt-line); }
+.dqt-rail { flex: none; width: var(--dqt-rail); display: flex; flex-direction: column; min-height: 0; padding-top: var(--dqt-frame-top); background: var(--dqt-bg-2); border-right: 1px solid var(--dqt-line); }
 .dqt-rail[data-overlay] { position: absolute; z-index: 30; inset: 0 auto 0 0; width: min(300px, 86%); box-shadow: 16px 0 48px -16px var(--dqt-scrim); animation: dqt-drawer-in .36s var(--dqt-ease-enter) both; }
 .dqt-rail[data-overlay][data-leaving] { animation: dqt-drawer-out .24s var(--dqt-ease-exit) both; }
 .dqt-scrim { position: absolute; z-index: 29; inset: 0; padding: 0; border: 0; background: var(--dqt-mask); cursor: default; animation: dqt-fade .3s ease both; }
@@ -118,7 +122,7 @@
 .dqt-history-warning { margin: 8px 10px; font-size: 11px; line-height: 1.6; color: var(--dqt-warn); }
 
 /* Main column */
-.dqt-main { display: flex; flex-direction: column; min-width: 0; min-height: 0; padding-top: var(--dsh-frame-top-clearance, 0px); }
+.dqt-main { display: flex; flex-direction: column; min-width: 0; min-height: 0; padding-top: var(--dqt-frame-top); }
 .dqt-bar { flex: none; display: flex; align-items: center; gap: 6px; height: 52px; padding: 0 14px 0 20px; }
 .dqt-bar > .dqt-icon-button:first-child { margin-left: -8px; }
 /* Bordered, labeled and counted: the way into the history must read as one at a glance. */
@@ -319,7 +323,7 @@
 
 /* Toast */
 /* Top of the content area: the bottom edge holds the primary actions and must stay reachable. */
-.dqt-toast-region { position: absolute; z-index: 70; left: 50%; top: calc(var(--dsh-frame-top-clearance, 0px) + 60px); transform: translateX(-50%); pointer-events: none; }
+.dqt-toast-region { position: absolute; z-index: 70; left: 50%; top: calc(var(--dqt-frame-top) + 60px); transform: translateX(-50%); pointer-events: none; }
 .dqt-root[data-layout='wide'][data-rail='shown'] .dqt-toast-region { left: calc(50% + var(--dqt-rail) / 2); }
 .dqt-toast { display: flex; align-items: center; gap: 10px; max-width: min(520px, calc(100vw - 48px)); padding: 8px 6px 8px 14px; border-radius: 12px; background: var(--dqt-primary); color: var(--dqt-on-primary); font-size: 13px; box-shadow: 0 16px 40px -12px var(--dqt-scrim); pointer-events: auto; animation: dqt-toast-in .26s var(--dqt-ease); }
 .dqt-toast > svg.lucide { color: var(--dqt-success); }
