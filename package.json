@@ -1,13 +1,18 @@
 {
   "name": "dsh-translate",
-  "version": "0.2.6",
+  "version": "0.2.9",
   "description": "翻译：DSH 模型、中英文提示词翻译、流式输出与本地历史记录。",
   "type": "module",
   "license": "MIT",
   "author": "Wanyi424",
-  "repository": { "type": "git", "url": "git+https://github.com/Wanyi424/dsh-translate.git" },
-  "homepage": "https://github.com/Wanyi424/dsh-translate#readme",
-  "bugs": { "url": "https://github.com/Wanyi424/dsh-translate/issues" },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Wanyi424/dsh-quick-translate.git"
+  },
+  "homepage": "https://github.com/Wanyi424/dsh-quick-translate#readme",
+  "bugs": {
+    "url": "https://github.com/Wanyi424/dsh-quick-translate/issues"
+  },
   "engines": {
     "node": ">=22",
     "dsh": "^0.2.0-rc.2"

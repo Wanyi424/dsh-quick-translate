@@ -73,12 +73,17 @@ const HistoryRail = memo(function HistoryRail({ c, history, loaded, loadingMore,
         {items.map(item => {
           const status = item.id === currentId && currentStatus ? currentStatus : item.status;
           const preview = status === 'completed' ? item.preview : status === 'running' ? '翻译中…' : `${STATUS[status]}${item.preview ? ` · ${item.preview}` : ''}`;
-          return <button key={item.id} type="button" className="dqt-history-item" data-status={status} aria-current={item.id === viewingId ? 'true' : undefined}
-            onClick={() => onPick(item.id)} onContextMenu={event => { event.preventDefault(); setMenu({ anchor: anchorAt(event), item }); }}>
-            <span className="dqt-history-title">{item.title || '（空白原文）'}</span>
-            <time dateTime={item.createdAt}>{timeOf(item.createdAt, today)}</time>
-            <span className="dqt-history-preview">{status !== 'completed' && <i className="dqt-dot" />}<span>{preview}</span></span>
-          </button>;
+          return <div key={item.id} className="dqt-history-row">
+            <button type="button" className="dqt-history-item" data-status={status} aria-current={item.id === viewingId ? 'true' : undefined}
+              onClick={() => onPick(item.id)} onContextMenu={event => { event.preventDefault(); setMenu({ anchor: anchorAt(event), item }); }}>
+              <span className="dqt-history-title">{item.title || '（空白原文）'}</span>
+              <time dateTime={item.createdAt}>{timeOf(item.createdAt, today)}</time>
+              <span className="dqt-history-preview">{status !== 'completed' && <i className="dqt-dot" />}<span>{preview}</span></span>
+            </button>
+            <button type="button" className="dqt-icon-button dqt-history-delete" aria-label={`删除记录：${item.title || '（空白原文）'}`}
+              title={running && item.id === currentId ? '翻译完成或停止后可删除' : '删除这条记录'}
+              disabled={busy || (running && item.id === currentId)} onClick={() => onDelete(item.id)}><Trash2 /></button>
+          </div>;
         })}
       </section>)}
       {loaded && !history.total && <div className="dqt-history-empty"><History /><p>还没有翻译记录</p><span>每次翻译都会自动保存在这里，随时回看、复制或重译。</span></div>}

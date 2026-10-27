@@ -7,6 +7,9 @@
   --dqt-fg: var(--dsw-alias-label-primary, #20232a);
   --dqt-fg-2: var(--dsw-alias-label-secondary, #555f70);
   --dqt-fg-3: var(--dsw-alias-label-tertiary, #808898);
+  --dqt-thumb: color-mix(in srgb, var(--dqt-fg-3) 34%, transparent);
+  --dqt-thumb-hover: color-mix(in srgb, var(--dqt-fg-3) 62%, transparent);
+  --dqt-thumb-active: color-mix(in srgb, var(--dqt-fg-3) 80%, transparent);
   --dqt-bg: var(--dsw-alias-bg-base, #fff);
   --dqt-bg-2: var(--dsw-alias-bg-layer-1, #f6f7f8);
   --dqt-overlay: var(--dsw-alias-bg-overlay, #fff);
@@ -56,6 +59,16 @@
 .dqt-root :where(button) { font: inherit; color: inherit; }
 .dqt-root kbd { display: inline-block; min-width: 20px; padding: 1px 5px; border: 1px solid var(--dqt-line); border-bottom-width: 2px; border-radius: 5px; background: var(--dqt-bg); font: 500 11px/16px var(--dqt-font); text-align: center; color: var(--dqt-fg-2); }
 
+/* Match the performance panel's scrollbars. Standard properties must be auto for Chromium's pseudo-elements.
+ * Keep gutter sizing local to each pane; outline navigation retains its hidden scrollbars. */
+.dqt-root * { scrollbar-width: auto; scrollbar-color: auto; }
+.dqt-root ::-webkit-scrollbar { width: 10px; height: 10px; }
+.dqt-root ::-webkit-scrollbar-track { margin: 4px 0; background: transparent; }
+.dqt-root ::-webkit-scrollbar-corner { background: transparent; }
+.dqt-root ::-webkit-scrollbar-thumb { border: 3px solid transparent; border-radius: 999px; background: var(--dqt-thumb) padding-box; }
+.dqt-root ::-webkit-scrollbar-thumb:hover { border-width: 2px; background-color: var(--dqt-thumb-hover); }
+.dqt-root ::-webkit-scrollbar-thumb:active { border-width: 2px; background-color: var(--dqt-thumb-active); }
+
 /* Buttons. A disabled state dims only after 120 ms so brief busy states do not flicker the page. */
 .dqt-button, .dqt-icon-button {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px; flex: none;
@@ -97,14 +110,17 @@
 .dqt-rail-head h2 { margin: 0; font-size: 13px; font-weight: 600; }
 .dqt-rail-head .dqt-icon-button { margin-left: auto; }
 .dqt-count { padding: 0 7px; border-radius: 999px; background: var(--dqt-hover); font-size: 11px; line-height: 18px; color: var(--dqt-fg-3); font-variant-numeric: tabular-nums; }
-.dqt-history { flex: 1; min-height: 0; overflow: auto; padding: 0 8px 16px; scrollbar-width: thin; scrollbar-color: var(--dqt-line-2) transparent; }
+.dqt-history { flex: 1; min-height: 0; overflow: auto; padding: 0 8px 16px; }
 .dqt-history h3 { position: sticky; top: 0; z-index: 1; margin: 0; padding: 12px 10px 6px; background: var(--dqt-bg-2); font-size: 11px; font-weight: 600; color: var(--dqt-fg-3); }
+.dqt-history-row { display: grid; grid-template-columns: minmax(0, 1fr) 32px; align-items: center; margin-bottom: 2px; padding-right: 4px; border-radius: 9px; transition: background-color .12s; }
+.dqt-history-row:hover { background: var(--dqt-hover); }
+.dqt-history-row:has([aria-current]) { background: var(--dqt-active); }
+.dqt-history-delete { border-radius: 5px; }
+.dqt-history-delete:hover:not(:disabled) { color: var(--dqt-danger); }
 .dqt-history-item {
-  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 10px; width: 100%; margin-bottom: 2px; padding: 8px 10px;
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 10px; width: 100%; min-width: 0; padding: 8px 10px;
   border: 0; border-radius: 9px; background: transparent; text-align: left; cursor: pointer; transition: background-color .12s;
 }
-.dqt-history-item:hover { background: var(--dqt-hover); }
-.dqt-history-item[aria-current] { background: var(--dqt-active); }
 .dqt-history-item[aria-current] .dqt-history-title { font-weight: 600; }
 .dqt-history-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: var(--dqt-fg); }
 .dqt-history-item time { font-size: 11px; line-height: 20px; color: var(--dqt-fg-3); font-variant-numeric: tabular-nums; }
@@ -156,7 +172,7 @@
 .dqt-tag { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--dqt-fg-3); padding-right: 12px; }
 .dqt-tag svg.lucide { width: 13px; height: 13px; }
 .dqt-clear { width: 28px; height: 28px; animation: dqt-fade .16s ease; }
-.dqt-source textarea, .dqt-output { flex: 1; min-height: 0; padding: 0 24px 20px; scrollbar-width: thin; scrollbar-color: var(--dqt-line-2) transparent; }
+.dqt-source textarea, .dqt-output { flex: 1; min-height: 0; padding: 0 24px 20px; }
 .dqt-source textarea { display: block; width: 100%; margin: 0; resize: none; border: 0; outline: none; background: transparent; color: var(--dqt-fg); font: 16px/1.8 var(--dqt-font); caret-color: var(--dqt-accent); }
 .dqt-source textarea::placeholder { color: var(--dqt-fg-3); }
 .dqt-source textarea[readonly] { cursor: default; }
@@ -221,7 +237,7 @@
 .dqt-status[data-status='failed'] .dqt-dot { background: var(--dqt-danger); }
 
 /* Menus */
-.dqt-menu { position: absolute; z-index: 60; min-width: 196px; max-width: 320px; max-height: min(440px, calc(100% - 16px)); overflow: auto; padding: 5px; border: 1px solid var(--dqt-line); border-radius: 12px; background: var(--dqt-overlay); color: var(--dqt-fg); box-shadow: 0 16px 40px -12px var(--dqt-scrim), 0 2px 6px var(--dqt-mask); animation: dqt-pop .2s var(--dqt-ease-enter); scrollbar-width: thin; }
+.dqt-menu { position: absolute; z-index: 60; min-width: 196px; max-width: 320px; max-height: min(440px, calc(100% - 16px)); overflow: auto; padding: 5px; border: 1px solid var(--dqt-line); border-radius: 12px; background: var(--dqt-overlay); color: var(--dqt-fg); box-shadow: 0 16px 40px -12px var(--dqt-scrim), 0 2px 6px var(--dqt-mask); animation: dqt-pop .2s var(--dqt-ease-enter); }
 .dqt-menu[data-leaving] { pointer-events: none; animation: dqt-pop-out .14s var(--dqt-ease-exit) both; }
 .dqt-menu [role^='menuitem'] { display: flex; align-items: center; gap: 10px; width: 100%; height: 34px; padding: 0 10px; border: 0; border-radius: 8px; background: transparent; font-size: 13px; text-align: left; white-space: nowrap; cursor: pointer; }
 .dqt-menu [role^='menuitem'] > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
@@ -247,7 +263,7 @@
 .dqt-dialog[data-leaving]::backdrop { animation: dqt-fade-out .2s ease both; }
 .dqt-dialog > header { flex: none; display: flex; align-items: center; gap: 8px; padding: 16px 14px 4px 22px; }
 .dqt-dialog h2 { flex: 1; margin: 0; font-size: 16px; font-weight: 600; }
-.dqt-dialog-body { flex: 1; min-height: 0; overflow: auto; padding: 6px 22px 6px; scrollbar-width: thin; }
+.dqt-dialog-body { flex: 1; min-height: 0; overflow: auto; padding: 6px 22px 6px; }
 .dqt-dialog > footer { flex: none; display: flex; justify-content: flex-end; gap: 8px; padding: 16px 22px 20px; }
 .dqt-dialog-wide { width: min(640px, calc(100vw - 32px)); }
 .dqt-dialog-text { margin: 0 0 6px; font-size: 13.5px; line-height: 1.75; color: var(--dqt-fg-2); }
@@ -266,7 +282,7 @@
 .dqt-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .dqt-row-split { justify-content: space-between; margin: 8px 0 14px; }
 .dqt-row-split .dqt-hint { margin: 0; }
-.dqt-prompt-view { max-height: 300px; overflow: auto; margin: 0 0 12px; padding: 12px 14px; border-radius: 10px; background: var(--dqt-bg-2); white-space: pre-wrap; overflow-wrap: anywhere; font: 12.5px/1.75 var(--dqt-font); color: var(--dqt-fg-2); scrollbar-width: thin; }
+.dqt-prompt-view { max-height: 300px; overflow: auto; margin: 0 0 12px; padding: 12px 14px; border-radius: 10px; background: var(--dqt-bg-2); white-space: pre-wrap; overflow-wrap: anywhere; font: 12.5px/1.75 var(--dqt-font); color: var(--dqt-fg-2); }
 .dqt-prompt-snapshot { max-height: calc(100vh - 260px); }
 
 /* Run details: three headline numbers, where the time went, then the facts and the prompt snapshot. */
@@ -302,7 +318,7 @@
 .dqt-disclosure[open] summary svg.lucide { transform: rotate(90deg); }
 .dqt-disclosure summary small { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 400; color: var(--dqt-fg-3); }
 .dqt-details .dqt-prompt-snapshot { max-height: 280px; }
-.dqt-prompt-editor { display: block; width: 100%; min-height: 280px; max-height: calc(100vh - 360px); resize: vertical; padding: 12px 14px; border: 1px solid var(--dqt-line-2); border-radius: 10px; background: var(--dqt-bg); color: var(--dqt-fg); font: 13px/1.75 var(--dqt-font); caret-color: var(--dqt-accent); scrollbar-width: thin; transition: border-color .15s, box-shadow .15s; }
+.dqt-prompt-editor { display: block; width: 100%; min-height: 280px; max-height: calc(100vh - 360px); resize: vertical; padding: 12px 14px; border: 1px solid var(--dqt-line-2); border-radius: 10px; background: var(--dqt-bg); color: var(--dqt-fg); font: 13px/1.75 var(--dqt-font); caret-color: var(--dqt-accent); transition: border-color .15s, box-shadow .15s; }
 .dqt-prompt-editor:focus, .dqt-input:focus { outline: none; border-color: var(--dqt-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--dqt-accent) 18%, transparent); }
 .dqt-file { display: grid; gap: 4px; margin: 0 0 12px; }
 .dqt-file > span { display: flex; gap: 8px; font-size: 12px; color: var(--dqt-fg-2); }

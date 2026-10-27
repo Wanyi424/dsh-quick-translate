@@ -2,14 +2,27 @@
 
 独立的中英文翻译页面。使用 DSH 已配置的模型，翻译行为完全由提示词决定；没有语言检测服务、语言选择参数、Agent、工具调用或会话交互。
 
+![翻译工作台与历史记录](docs/images/translation.png)
+
+预览来自加载真实插件构建产物的隔离浏览器环境，翻译内容和用量为模拟数据。市场预览图由仓库根目录的 [screenshots.json](screenshots.json) 声明。
+
+<details>
+<summary>翻译详情与深色界面</summary>
+
+![翻译详情](docs/images/details.png)
+
+![深色翻译界面](docs/images/translation-dark.png)
+
+</details>
+
 ## 安装
 
-通过 `engines.dsh` 声明兼容 Windows 桌面版 DeepSeek Harness 0.2 系列（`^0.2.0-rc.2`），在 `0.2.0-rc.2` 上检查过，与 [Markdown 笔记插件](https://github.com/Wanyi424/dsh-markdown-notes)独立。克隆本仓库后，按下方「开发与验证」构建安装包。
+通过 `engines.dsh` 声明兼容 Windows 桌面版 DeepSeek Harness 0.2 系列（`^0.2.0-rc.2`），在 `0.2.0-rc.2` 上检查过，与 [Markdown 笔记插件](https://github.com/Wanyi424/dsh-markdown-notes)独立。从 [Releases](https://github.com/Wanyi424/dsh-quick-translate/releases/latest) 下载预构建的 `.tgz` 安装包；开发者也可克隆本仓库，按下方「开发与验证」构建。
 
 在 DSH 左侧「插件」页面选择「添加插件」，添加压缩包：
 
 ```text
-dist/dsh-translate-0.2.6.tgz
+dist/dsh-translate-0.2.9.tgz
 ```
 
 按安装页面提示启用或重启后，左侧出现「翻译」。无需修改 DSH 的配置文件，也不需要另填 API Key。新插件不会修改笔记插件或已有笔记。此项目没有自动安装到用户的 DSH profile。
@@ -26,6 +39,7 @@ dist/dsh-translate-0.2.6.tgz
 4. 修改原文后，上一次的译文会变淡并提示「原文已修改」，避免误复制旧结果。点击原文栏右上角的「×」清空，开始新的翻译。
 5. 切换到 DSH 的其他页面时，翻译在后台继续；返回后恢复进度。
 6. 历史记录按「今天 / 昨天 / 近 7 天 / 月份」分组，每条显示原文和译文的首行，滚动到底部自动加载更多。
+   - 点击记录右侧的垃圾桶按钮，确认后删除这一条记录；正在翻译的记录需先完成或停止。
    - 点击一条记录进入只读查看。顶部显示「返回」，也可按 `Esc` 回到当前翻译；「用此原文重译」把原文放回工作台。
    - 右键一条记录，可以复制译文、用原文重译、查看翻译详情或删除。
    - 顶部「…」可打开这条记录的「翻译详情」，或删除这条记录。

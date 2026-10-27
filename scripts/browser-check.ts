@@ -190,6 +190,8 @@ try {
   await source.fill('STOP：测试停止后保留已输出部分');
   await page.keyboard.press('Control+Enter');
   await page.locator('.dqt-text[data-live]').waitFor();
+  assert.equal(await page.getByRole('button', { name: /^删除记录：STOP/ }).isDisabled(), true);
+  assert.equal(await page.getByRole('button', { name: /^删除记录：清晰的表达/ }).isEnabled(), true);
   await page.getByRole('button', { name: '停止', exact: true }).click(); await page.getByRole('button', { name: '重新翻译', exact: true }).waitFor();
   // Find records by content, not position: list order follows creation timestamps, which a clock correction can reorder.
   assert.equal((await f.store.list()).items.find(item => item.title.startsWith('STOP'))?.status, 'stopped'); assert.ok((await page.locator('.dqt-text').innerText()).length > 0);
@@ -247,6 +249,12 @@ try {
   await page.setViewportSize({ width: 420, height: 820 });
   await page.locator('.dqt-root[data-layout="narrow"]').waitFor(); await shot('narrow');
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+  await page.locator('.dqt-history-button').click();
+  await page.getByRole('button', { name: /^删除记录：清晰的表达/ }).click();
+  await page.getByRole('button', { name: '取消', exact: true }).click(); await noDialog();
+  assert.equal((await f.store.list()).total, 2);
+  await shot('narrow-history-delete');
+  await page.getByRole('button', { name: '收起历史记录' }).click(); await page.locator('.dqt-rail').waitFor({ state: 'detached' });
   await dark(true); await shot('narrow-dark'); await dark(false);
   // Entering at a narrow width never renders the rail: the width is measured before the first paint, so no drawer slides away.
   await page.evaluate(() => document.getElementById('close-translate')!.click());
@@ -263,8 +271,21 @@ try {
   await closeDialog();
   await page.locator('.dqt-history-item').first().click({ button: 'right' });
   await page.getByRole('menuitem', { name: '删除' }).click(); await shot('delete-confirm');
+  await page.getByRole('button', { name: '取消', exact: true }).click(); await noDialog();
+  const beforeDelete = await f.store.list();
+  const removed = beforeDelete.items.find(item => item.title.startsWith('清晰的表达'))!;
+  const retained = beforeDelete.items.find(item => item.id !== removed.id)!;
+  const retainedRecord = await f.store.read(retained.id);
+  const draftBeforeDelete = await source.inputValue();
+  await page.getByRole('button', { name: /^删除记录：清晰的表达/ }).click();
+  assert.equal(await page.locator('.dqt-bar[data-mode="history"]').count(), 0, 'delete does not select the record');
   await page.getByRole('button', { name: '确认删除', exact: true }).click(); await noDialog();
   assert.equal((await f.store.list()).total, 1);
+  assert.deepEqual(await f.store.read(retained.id), retainedRecord, 'another record is unchanged');
+  assert.deepEqual((await f.store.list()).items.map(item => item.id), [retained.id]);
+  await page.getByRole('button', { name: /^删除记录：清晰的表达/ }).waitFor({ state: 'detached' });
+  assert.equal(await page.locator('.dqt-rail-head .dqt-count').innerText(), '1');
+  assert.equal(await source.inputValue(), draftBeforeDelete);
   await openSettings(); await page.getByRole('button', { name: '清空全部…' }).click();
   await page.getByRole('button', { name: '确认清空', exact: true }).click(); await noDialog();
   assert.equal((await f.store.list()).total, 0);
