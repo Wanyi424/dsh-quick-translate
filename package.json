@@ -1,7 +1,7 @@
 {
   "name": "dsh-translate",
-  "version": "0.2.9",
-  "description": "翻译：DSH 模型、中英文提示词翻译、流式输出与本地历史记录。",
+  "version": "0.2.10",
+  "description": "不离开 DSH 就能中英互译：复用已配置的模型，免填 API Key；译文边生成边显示，提示词可自定义，历史自动存在本地，可随时回看重译。",
   "type": "module",
   "license": "MIT",
   "author": "Wanyi424",
